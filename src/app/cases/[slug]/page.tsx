@@ -510,6 +510,10 @@ export default function CaseOpenPage() {
     batchFastOpening && batchApiWaiting && openMultiplier > 1;
   const showBatchResultCards = Boolean(batchDrop);
   const totalOpenPrice = c ? c.price * openMultiplier : 0;
+  const batchSellTotalRub = useMemo(() => {
+    if (!batchDrop?.results.length) return 0;
+    return batchDrop.results.reduce((s, r) => s + (Number(r.item.sellPrice) || 0), 0);
+  }, [batchDrop]);
 
   const handleSellAllBatch = useCallback(async () => {
     if (!batchDrop?.results.length || sellAllBusy) return;
@@ -592,9 +596,9 @@ export default function CaseOpenPage() {
                   <CaseNeonRingFrame>
                     <div className="relative h-full min-h-[200px] w-full overflow-visible sm:min-h-[240px]">
                       {c.image ? (
-                        <div className="pointer-events-none absolute -inset-[6%] z-[1] flex translate-y-5 items-end justify-center sm:-inset-[5%] sm:translate-y-6">
+                        <div className="pointer-events-none absolute -inset-[6%] z-[1] flex -translate-y-1 items-end justify-center sm:-inset-[5%] sm:-translate-y-2">
                           <div
-                            className="relative h-[106%] w-[116%] max-w-none origin-bottom sm:h-[110%] sm:w-[120%]"
+                            className="relative h-[102%] w-[112%] max-w-none origin-bottom sm:h-[106%] sm:w-[116%]"
                             style={{ transform: `translateZ(0) scale(${heroCaseS})` }}
                           >
                             <Image
@@ -646,23 +650,8 @@ export default function CaseOpenPage() {
                 <h1 className="text-center text-2xl font-bold text-white sm:text-3xl">
                   {c.name}
                 </h1>
-                <p className="mt-2 text-center text-sm text-zinc-400">
-                  Цена открытия:{" "}
-                  <span className="font-mono text-cb-flame">{formatRub(c.price)} ₽</span>
-                  {openMultiplier > 1 ? (
-                    <>
-                      <span className="text-zinc-600"> · </span>
-                      всего{" "}
-                      <span className="font-mono text-amber-300/90">
-                        {formatRub(totalOpenPrice)} ₽
-                      </span>
-                    </>
-                  ) : null}
-                  <span className="text-zinc-600"> · </span>
-                  {c.itemCount} предметов в пуле
-                </p>
 
-                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
                   <span className="w-full text-center text-[11px] font-medium uppercase tracking-wide text-zinc-500 sm:w-auto">
                     Открыть сразу
                   </span>
@@ -703,17 +692,6 @@ export default function CaseOpenPage() {
                       <div
                         className={`flex w-full max-w-md flex-col items-center gap-5 px-2 ${showRoulette ? "mt-8" : ""}`}
                       >
-                        <p className="text-center text-sm text-zinc-400">
-                          <span className="font-semibold text-white">{drop.item.name}</span>
-                          <span className="text-zinc-600"> · </span>
-                          {drop.item.rarity}
-                          <span className="text-zinc-600"> · </span>
-                          Баланс:{" "}
-                          <span className="font-mono text-cb-flame">
-                            {formatRub(drop.newBalance)} ₽
-                          </span>
-                        </p>
-
                         <div className="flex w-full flex-wrap items-center justify-center gap-3">
                           <button
                             type="button"
@@ -785,15 +763,6 @@ export default function CaseOpenPage() {
                       <div
                         className={`flex w-full max-w-3xl flex-col items-center gap-5 px-2 ${showRoulette ? "mt-8" : ""}`}
                       >
-                        <p className="text-center text-sm text-zinc-400">
-                          Выпало предметов:{" "}
-                          <span className="font-semibold text-white">{batchDrop.results.length}</span>
-                          <span className="text-zinc-600"> · </span>
-                          Баланс:{" "}
-                          <span className="font-mono text-cb-flame">
-                            {formatRub(batchDrop.newBalance)} ₽
-                          </span>
-                        </p>
                         <div className="flex w-full flex-wrap items-center justify-center gap-3">
                           <button
                             type="button"
@@ -830,7 +799,7 @@ export default function CaseOpenPage() {
                             <span className="text-base leading-none opacity-90" aria-hidden>
                               🛒
                             </span>
-                            Продать всё
+                            Продать всё за {formatRub(batchSellTotalRub)} ₽
                           </button>
                         </div>
                       </div>

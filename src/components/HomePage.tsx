@@ -7,9 +7,20 @@ import { SiteShell } from "@/components/SiteShell";
 import { CATEGORY_LABELS, CATEGORY_ORDER } from "@/lib/categories";
 import { apiFetch } from "@/lib/api";
 
+type SiteUiPublic = {
+  homeCaseImageScale: number;
+  homeSkinImageScale: number;
+};
+
 export function HomePage() {
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [siteUi, setSiteUi] = useState<SiteUiPublic>({
+    homeCaseImageScale: 100,
+    homeSkinImageScale: 100,
+  });
+  /** Якщо /api/site-ui недоступний (часто — не перезапущений backend), користувач лишається на 100%. */
+  const [siteUiLoadIssue, setSiteUiLoadIssue] = useState<string | null>(null);
 
   const loadCases = useCallback(async () => {
     const r = await apiFetch<{ cases: CaseSummary[] }>("/api/cases");
@@ -21,15 +32,54 @@ export function HomePage() {
     setError(null);
   }, []);
 
+  const loadSiteUi = useCallback(async () => {
+    const r = await apiFetch<SiteUiPublic>("/api/site-ui");
+    if (r.ok && r.data) {
+      const d = r.data;
+      const homeCaseImageScale =
+        typeof d.homeCaseImageScale === "number" && Number.isFinite(d.homeCaseImageScale)
+          ? d.homeCaseImageScale
+          : 100;
+      const homeSkinImageScale =
+        typeof d.homeSkinImageScale === "number" && Number.isFinite(d.homeSkinImageScale)
+          ? d.homeSkinImageScale
+          : 100;
+      setSiteUi({ homeCaseImageScale, homeSkinImageScale });
+      setSiteUiLoadIssue(null);
+      return;
+    }
+    const hint =
+      r.status === 404
+        ? "API без маршруту /api/site-ui — зупиніть старий процес Node і перезапустіть backend з актуального коду (npm run dev з кореня репозиторію)."
+        : r.error || "Немає зв’язку з API";
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[StormBattle] Масштаб карток на головній лишається 100%:", hint);
+    }
+    setSiteUiLoadIssue(
+      r.status === 404
+        ? "Масштаб карток на головній не застосовано (404 /api/site-ui). Перезапустіть backend з актуального коду."
+        : process.env.NODE_ENV === "development"
+          ? hint
+          : null,
+    );
+  }, []);
+
   useEffect(() => {
     loadCases();
-  }, [loadCases]);
+    void loadSiteUi();
+  }, [loadCases, loadSiteUi]);
 
   useEffect(() => {
     const h = () => loadCases();
     window.addEventListener("cd-cases-updated", h);
     return () => window.removeEventListener("cd-cases-updated", h);
   }, [loadCases]);
+
+  useEffect(() => {
+    const h = () => void loadSiteUi();
+    window.addEventListener("cd-site-ui-updated", h);
+    return () => window.removeEventListener("cd-site-ui-updated", h);
+  }, [loadSiteUi]);
 
   const featured = cases.filter((c) => c.featured);
 
@@ -44,6 +94,12 @@ export function HomePage() {
     <SiteShell>
       <PromoHeroBanner />
 
+      {siteUiLoadIssue && (
+        <div className="border-b border-amber-500/35 bg-amber-950/40 px-4 py-2 text-center text-xs text-amber-200/95">
+          {siteUiLoadIssue}
+        </div>
+      )}
+
       {featured.length > 0 && (
         <section className="border-t border-cb-stroke/80 bg-black/25 px-6 py-14">
           <div className="mx-auto max-w-6xl">
@@ -53,7 +109,12 @@ export function HomePage() {
             </h2>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {featured.map((c) => (
-                <CaseCard key={c.slug} c={c} />
+                <CaseCard
+                  key={c.slug}
+                  c={c}
+                  homeCaseScalePct={siteUi.homeCaseImageScale}
+                  homeSkinScalePct={siteUi.homeSkinImageScale}
+                />
               ))}
             </div>
           </div>
@@ -77,7 +138,12 @@ export function HomePage() {
                 </h2>
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {list.map((c) => (
-                    <CaseCard key={c.slug} c={c} />
+                    <CaseCard
+                      key={c.slug}
+                      c={c}
+                      homeCaseScalePct={siteUi.homeCaseImageScale}
+                      homeSkinScalePct={siteUi.homeSkinImageScale}
+                    />
                   ))}
                 </div>
               </div>

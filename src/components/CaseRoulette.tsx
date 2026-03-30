@@ -21,6 +21,11 @@ const TRACK_PAD = 16;
 const REPEAT = 48;
 const SPIN_ROUNDS = 26;
 
+/** Тривалість основної прокрутки (очікування API — окремо, без анімації стрічки). */
+export const ROULETTE_SPIN_DURATION_MS = 5500;
+export const ROULETTE_SPIN_EASE = "cubic-bezier(0.17, 0.67, 0.12, 1)";
+const START_OFFSET_X = Math.round((2600 * ROULETTE_SPIN_DURATION_MS) / 4800);
+
 export const rarityBar: Record<string, string> = {
   common: "bg-zinc-500",
   uncommon: "bg-emerald-500",
@@ -130,10 +135,15 @@ export function CaseRoulette({
   }, []);
 
   useEffect(() => {
-    if (soundMuted || transitionMs !== 4800 || spinWaiting || landOnIndex == null) {
+    if (
+      soundMuted ||
+      transitionMs !== ROULETTE_SPIN_DURATION_MS ||
+      spinWaiting ||
+      landOnIndex == null
+    ) {
       return;
     }
-    return startRouletteSpinTicks(4800, false);
+    return startRouletteSpinTicks(ROULETTE_SPIN_DURATION_MS, false);
   }, [transitionMs, landEpoch, soundMuted, spinWaiting, landOnIndex]);
 
   const strip = useMemo(() => {
@@ -149,8 +159,10 @@ export function CaseRoulette({
     if (!viewportRef.current || !items.length) return;
 
     if (spinWaiting) {
+      const vw = viewportRef.current.clientWidth;
+      const idleIdx = items.length * 3;
       setTransitionMs(0);
-      setTx(0);
+      setTx(vw / 2 - HALF_CARD - TRACK_PAD - idleIdx * CARD_STEP);
       return;
     }
 
@@ -173,14 +185,14 @@ export function CaseRoulette({
     const n = items.length;
     const finalSlot = SPIN_ROUNDS * n + landOnIndex;
     const endTx = vw / 2 - HALF_CARD - TRACK_PAD - finalSlot * CARD_STEP;
-    const startTx = endTx + 2600;
+    const startTx = endTx + START_OFFSET_X;
 
     setTransitionMs(0);
     setTx(startTx);
 
     const id = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        setTransitionMs(4800);
+        setTransitionMs(ROULETTE_SPIN_DURATION_MS);
         setTx(endTx);
       });
     });
@@ -203,7 +215,6 @@ export function CaseRoulette({
     );
   }
 
-  const useWaitMotion = spinWaiting && landOnIndex === null;
   const n = items.length;
   const winnerStripIndex =
     landOnIndex != null && n > 0 ? SPIN_ROUNDS * n + landOnIndex : -1;
@@ -239,20 +250,14 @@ export function CaseRoulette({
         </div>
 
         <div
-          className={`flex h-full items-center gap-2 pl-4 pr-32 will-change-transform ${
-            useWaitMotion ? "animate-case-roulette-wait" : ""
-          }`}
-          style={
-            useWaitMotion
-              ? undefined
-              : {
-                  transform: `translate3d(${tx}px,0,0)`,
-                  transition:
-                    transitionMs > 0
-                      ? `transform ${transitionMs}ms cubic-bezier(0.06, 0.75, 0.2, 1)`
-                      : "none",
-                }
-          }
+          className="flex h-full items-center gap-2 pl-4 pr-32 will-change-transform"
+          style={{
+            transform: `translate3d(${tx}px,0,0)`,
+            transition:
+              transitionMs > 0
+                ? `transform ${transitionMs}ms ${ROULETTE_SPIN_EASE}`
+                : "none",
+          }}
           onTransitionEnd={onTransitionEnd}
         >
           {strip.map((it) => (

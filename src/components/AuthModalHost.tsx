@@ -93,7 +93,7 @@ export function AuthModalHost() {
                 <span className="text-lg font-black text-cb-flame/90">CD</span>
               </div>
               <div className="leading-tight">
-                <p className="text-xl font-black text-white">CaseDrop</p>
+                <p className="text-xl font-black text-white">StormBattle</p>
                 <p className="text-xs font-semibold text-zinc-400">Вход через Steam</p>
               </div>
             </div>

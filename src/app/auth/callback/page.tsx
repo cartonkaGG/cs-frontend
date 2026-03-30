@@ -32,7 +32,7 @@ function CallbackInner() {
   }, [router, search]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-300">
+    <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-300 lg:min-h-full">
       <p>{msg}</p>
     </div>
   );
@@ -42,7 +42,7 @@ export default function AuthCallbackPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-300">
+        <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-300 lg:min-h-full">
           Загрузка…
         </div>
       }

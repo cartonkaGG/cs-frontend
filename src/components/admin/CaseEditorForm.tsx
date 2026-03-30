@@ -40,6 +40,12 @@ export function CaseEditorForm({ mode, initial }: Props) {
   const [price, setPrice] = useState(String(initial?.price ?? 0));
   const [image, setImage] = useState(initial?.image || "");
   const [skinImage, setSkinImage] = useState(initial?.skinImage || "");
+  const [cardCaseImageScale, setCardCaseImageScale] = useState(
+    String(initial?.cardCaseImageScale ?? initial?.heroCaseImageScale ?? 100),
+  );
+  const [cardSkinImageScale, setCardSkinImageScale] = useState(
+    String(initial?.cardSkinImageScale ?? initial?.heroSkinImageScale ?? 100),
+  );
   const [heroCaseImageScale, setHeroCaseImageScale] = useState(
     String(initial?.heroCaseImageScale ?? 100),
   );
@@ -64,6 +70,8 @@ export function CaseEditorForm({ mode, initial }: Props) {
       weight: Math.max(1, Math.floor(Number(it.weight)) || 1),
       image: (it.image || "").trim(),
     }));
+    const cCase = Math.min(180, Math.max(40, Math.round(Number(cardCaseImageScale) || 100)));
+    const cSkin = Math.min(180, Math.max(40, Math.round(Number(cardSkinImageScale) || 100)));
     const hCase = Math.min(180, Math.max(40, Math.round(Number(heroCaseImageScale) || 100)));
     const hSkin = Math.min(180, Math.max(40, Math.round(Number(heroSkinImageScale) || 100)));
     return {
@@ -72,6 +80,8 @@ export function CaseEditorForm({ mode, initial }: Props) {
       price: Number.isFinite(p) ? p : 0,
       image: image.trim(),
       skinImage: skinImage.trim(),
+      cardCaseImageScale: cCase,
+      cardSkinImageScale: cSkin,
       heroCaseImageScale: hCase,
       heroSkinImageScale: hSkin,
       category: category.trim() || "popular",
@@ -85,6 +95,8 @@ export function CaseEditorForm({ mode, initial }: Props) {
     price,
     image,
     skinImage,
+    cardCaseImageScale,
+    cardSkinImageScale,
     heroCaseImageScale,
     heroSkinImageScale,
     category,
@@ -133,6 +145,8 @@ export function CaseEditorForm({ mode, initial }: Props) {
         price: saveBody.price,
         image: saveBody.image,
         skinImage: saveBody.skinImage,
+        cardCaseImageScale: saveBody.cardCaseImageScale,
+        cardSkinImageScale: saveBody.cardSkinImageScale,
         heroCaseImageScale: saveBody.heroCaseImageScale,
         heroSkinImageScale: saveBody.heroSkinImageScale,
         category: saveBody.category,
@@ -267,9 +281,48 @@ export function CaseEditorForm({ mode, initial }: Props) {
             placeholder="https://… оружие / предмет поверх коробки"
           />
         </label>
+        <div className="space-y-2 lg:col-span-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+            Главная — карточка в каталоге
+          </p>
+          <p className="text-[10px] text-zinc-500">
+            Умножается с глобальным % в разделе «Главная (карточки)». Отдельно от страницы кейса.
+          </p>
+        </div>
         <label className="block space-y-1">
           <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-            Размер изображения коробки на странице кейса (%)
+            Коробка на главной (%)
+          </span>
+          <input
+            type="number"
+            min={40}
+            max={180}
+            value={cardCaseImageScale}
+            onChange={(e) => setCardCaseImageScale(e.target.value)}
+            className="w-full rounded-lg border border-cb-stroke bg-black/40 px-3 py-2 text-white"
+          />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+            Скин на главной (%)
+          </span>
+          <input
+            type="number"
+            min={40}
+            max={180}
+            value={cardSkinImageScale}
+            onChange={(e) => setCardSkinImageScale(e.target.value)}
+            className="w-full rounded-lg border border-cb-stroke bg-black/40 px-3 py-2 text-white"
+          />
+        </label>
+        <div className="space-y-2 lg:col-span-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+            Страница открытия кейса (меню кейса)
+          </p>
+        </div>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+            Коробка на странице кейса (%)
           </span>
           <input
             type="number"
@@ -280,12 +333,12 @@ export function CaseEditorForm({ mode, initial }: Props) {
             className="w-full rounded-lg border border-cb-stroke bg-black/40 px-3 py-2 text-white"
           />
           <span className="text-[10px] text-zinc-500">
-            100 — по умолчанию; ниже — меньше коробка, выше — крупнее.
+            100 — по умолчанию; только блок с кольцом на /cases/…
           </span>
         </label>
         <label className="block space-y-1">
           <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-            Размер PNG скина над кейсом (%)
+            Скин на странице кейса (%)
           </span>
           <input
             type="number"
@@ -295,7 +348,7 @@ export function CaseEditorForm({ mode, initial }: Props) {
             onChange={(e) => setHeroSkinImageScale(e.target.value)}
             className="w-full rounded-lg border border-cb-stroke bg-black/40 px-3 py-2 text-white"
           />
-          <span className="text-[10px] text-zinc-500">100 — стандартный масштаб предмета поверх коробки.</span>
+          <span className="text-[10px] text-zinc-500">Только hero на странице кейса.</span>
         </label>
         <label className="flex items-center gap-2">
           <input

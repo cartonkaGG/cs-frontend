@@ -19,6 +19,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               Кейсы
             </Link>
+            <Link href="/admin/site-ui" className="text-zinc-400 hover:text-white">
+              Главная (карточки)
+            </Link>
             <Link href="/admin/promos" className="text-zinc-400 hover:text-white">
               Промокоды
             </Link>

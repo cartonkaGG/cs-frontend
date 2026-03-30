@@ -11,17 +11,18 @@ import {
   normRarity,
   rarityBar,
   rarityCardFill,
+  ROULETTE_SPIN_DURATION_MS,
+  ROULETTE_SPIN_EASE,
   type RouletteItem,
 } from "@/components/CaseRoulette";
 
-/** Висота картки + gap-2 (8px), узгоджено з tailwind keyframes caseRouletteWaitY */
+/** Висота картки + gap-2 (8px), узгоджено з CARD_STEP_Y у transition */
 const CARD_STEP_Y = 112;
 const HALF_CARD_Y = 52;
 const TRACK_PAD = 6;
 const REPEAT = 48;
 const SPIN_ROUNDS = 26;
-const SPIN_MS = 4800;
-const START_OFFSET_Y = 2400;
+const START_OFFSET_Y = Math.round((2400 * ROULETTE_SPIN_DURATION_MS) / 4800);
 
 function BatchVerticalCard({
   item,
@@ -95,8 +96,10 @@ function VerticalColumn({
     if (!viewportRef.current || !items.length) return;
 
     if (spinWaiting) {
+      const vh = viewportRef.current.clientHeight;
+      const idleIdx = items.length * 3;
       setTransitionMs(0);
-      setTy(0);
+      setTy(vh / 2 - HALF_CARD_Y - TRACK_PAD - idleIdx * CARD_STEP_Y);
       return;
     }
 
@@ -124,7 +127,7 @@ function VerticalColumn({
 
     const id = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        setTransitionMs(SPIN_MS);
+        setTransitionMs(ROULETTE_SPIN_DURATION_MS);
         setTy(endTy);
       });
     });
@@ -139,7 +142,6 @@ function VerticalColumn({
     onStripTransitionEnd();
   }
 
-  const useWaitMotion = spinWaiting && landOnIndex == null;
   const n = items.length;
   const winnerStripIndex =
     landOnIndex != null && n > 0 ? SPIN_ROUNDS * n + landOnIndex : -1;
@@ -150,20 +152,14 @@ function VerticalColumn({
       className="relative h-[11.5rem] min-w-0 flex-1 overflow-hidden rounded-xl border border-cb-stroke/50 bg-[#05080f]/95 shadow-[inset_0_0_28px_rgba(0,0,0,0.45)] sm:h-[13rem] sm:max-w-[120px] sm:flex-none"
     >
       <div
-        className={`flex flex-col items-center gap-2 px-1 pb-24 pt-2 will-change-transform ${
-          useWaitMotion ? "animate-case-roulette-wait-y" : ""
-        }`}
-        style={
-          useWaitMotion
-            ? undefined
-            : {
-                transform: `translate3d(0,${ty}px,0)`,
-                transition:
-                  transitionMs > 0
-                    ? `transform ${transitionMs}ms cubic-bezier(0.06, 0.75, 0.2, 1)`
-                    : "none",
-              }
-        }
+        className="flex flex-col items-center gap-2 px-1 pb-24 pt-2 will-change-transform"
+        style={{
+          transform: `translate3d(0,${ty}px,0)`,
+          transition:
+            transitionMs > 0
+              ? `transform ${transitionMs}ms ${ROULETTE_SPIN_EASE}`
+              : "none",
+        }}
         onTransitionEnd={onTransitionEnd}
       >
         {strip.map((it) => (
@@ -224,7 +220,7 @@ export function CaseBatchVerticalRoulette({
 
   useEffect(() => {
     if (soundMuted || spinWaiting || !landIndices?.length || landEpoch === 0) return;
-    return startRouletteSpinTicks(SPIN_MS, false);
+    return startRouletteSpinTicks(ROULETTE_SPIN_DURATION_MS, false);
   }, [landEpoch, landIndices, soundMuted, spinWaiting]);
 
   useEffect(() => {

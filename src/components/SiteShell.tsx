@@ -19,6 +19,58 @@ type Props = {
   children: React.ReactNode;
 };
 
+/** Іконка «апгрейд»: три шеврони вгору в стилі сайту (cb-flame + приглушений «ободок»). */
+function UpgradeNavIcon({ className }: { className?: string }) {
+  const muted = "#6B565C";
+  const flame = "#ff3131";
+  const stroke = 2.25;
+  return (
+    <svg
+      className={className}
+      width={36}
+      height={32}
+      viewBox="0 0 36 32"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <defs>
+        <filter id="cb-upgrade-chevron-glow" x="-35%" y="-35%" width="170%" height="170%">
+          <feGaussianBlur stdDeviation="1.2" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      <path
+        d="M6 20 L18 12 L30 20"
+        stroke={muted}
+        strokeOpacity={0.9}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6 14 L18 6 L30 14"
+        stroke={flame}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        filter="url(#cb-upgrade-chevron-glow)"
+      />
+      <path
+        d="M6 8 L18 0 L30 8"
+        stroke={muted}
+        strokeOpacity={0.9}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function SiteShell({ children }: Props) {
   const drops = useLiveDrops();
   const [me, setMe] = useState<Me | null>(null);
@@ -67,7 +119,7 @@ export function SiteShell({ children }: Props) {
   const balanceStr = me ? formatRub(me.balance) : null;
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
       <header className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-4 border-b border-cb-stroke/80 bg-cb-void/90 px-4 py-3 backdrop-blur-xl sm:px-6">
         <Link href="/" className="flex items-center gap-2.5">
           <Image
@@ -79,9 +131,20 @@ export function SiteShell({ children }: Props) {
             priority
           />
           <span className="bg-gradient-to-r from-white via-cb-flame to-red-300 bg-clip-text text-xl font-black tracking-tight text-transparent">
-            CaseDrop
+            StormBattle
           </span>
         </Link>
+        <nav className="flex flex-1 items-center justify-center sm:flex-none sm:justify-start">
+          <Link
+            href="/upgrade"
+            className="group flex flex-col items-center gap-0.5 rounded-lg px-2 py-0.5 outline-none transition hover:opacity-100 focus-visible:ring-2 focus-visible:ring-cb-flame/45 focus-visible:ring-offset-2 focus-visible:ring-offset-cb-void sm:px-3"
+          >
+            <UpgradeNavIcon className="h-7 w-8 shrink-0 transition group-hover:drop-shadow-[0_0_12px_rgba(255,49,49,0.45)] sm:h-8 sm:w-9" />
+            <span className="bg-gradient-to-r from-zinc-200 via-cb-flame to-red-300 bg-clip-text text-[10px] font-bold uppercase leading-none tracking-[0.14em] text-transparent sm:text-[11px]">
+              Апгрейд
+            </span>
+          </Link>
+        </nav>
         <div className="ml-auto flex flex-wrap items-center gap-3 text-sm">
           {me && balanceStr && (
             <div className="hidden lg:block">
@@ -139,6 +202,14 @@ export function SiteShell({ children }: Props) {
                       {formatRub(me.balance)} <span className="text-zinc-500">₽</span>
                     </p>
                   </div>
+                  <Link
+                    href="/upgrade"
+                    role="menuitem"
+                    className="block px-4 py-2.5 text-sm text-zinc-300 hover:bg-white/5 hover:text-cb-flame"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Апгрейд
+                  </Link>
                   <Link
                     href="/profile"
                     role="menuitem"
