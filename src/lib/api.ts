@@ -18,10 +18,21 @@ export function clearToken() {
   localStorage.removeItem("cd_token");
 }
 
+export type ApiFieldErrors = {
+  fieldErrors?: Record<string, string[] | undefined>;
+  formErrors?: string[];
+};
+
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit
-): Promise<{ ok: boolean; data?: T; error?: string; status: number }> {
+): Promise<{
+  ok: boolean;
+  data?: T;
+  error?: string;
+  details?: ApiFieldErrors;
+  status: number;
+}> {
   const token = typeof window !== "undefined" ? getToken() : null;
   const headers: HeadersInit = {
     ...(init?.headers || {}),
@@ -41,9 +52,11 @@ export async function apiFetch<T>(
       data = undefined;
     }
     if (!res.ok) {
-      const err =
-        (data as { error?: string } | undefined)?.error ||
-        `Ошибка ${res.status}`;
+      const payload = data as
+        | { error?: string; details?: ApiFieldErrors }
+        | undefined;
+      const err = payload?.error || `Ошибка ${res.status}`;
+      const details = payload?.details;
 
       if (
         res.status === 401 &&
@@ -53,7 +66,7 @@ export async function apiFetch<T>(
         requestAuthModal(`${window.location.pathname}${window.location.search}`);
       }
 
-      return { ok: false, error: err, status: res.status };
+      return { ok: false, error: err, details, status: res.status };
     }
     return { ok: true, data, status: res.status };
   } catch {

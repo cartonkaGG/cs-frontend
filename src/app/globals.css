@@ -103,6 +103,65 @@ body {
   background: rgba(255, 49, 49, 0.12);
 }
 
+/* Анімація неонового обідка кейса (сторінка відкриття) */
+@keyframes cb-case-ring-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes cb-case-ring-rotate-rev {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+.cb-case-neon-outer {
+  transform-origin: 50px 50px;
+  animation: cb-case-ring-rotate 22s linear infinite;
+}
+
+.cb-case-neon-arcs {
+  transform-origin: 50px 50px;
+  animation: cb-case-ring-rotate-rev 15s linear infinite;
+}
+
+/* Легке «плавання» скіна над кейсом (сторінка відкриття) */
+@keyframes cb-case-skin-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-0.4deg);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0) rotate(0.4deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cb-case-skin-float {
+    animation: cb-case-skin-float 5.5s ease-in-out infinite;
+    will-change: transform;
+  }
+}
+
+/* Скін на картці кейсу: тільки вертикаль, без нахилу (щоб на hover не «вело» вбік) */
+@keyframes cb-case-skin-float-y {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -8px, 0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cb-case-skin-float-y {
+    animation: cb-case-skin-float-y 5.5s ease-in-out infinite;
+    will-change: transform;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

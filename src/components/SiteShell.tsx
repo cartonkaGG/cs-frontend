@@ -82,14 +82,6 @@ export function SiteShell({ children }: Props) {
             CaseDrop
           </span>
         </Link>
-        <nav className="order-3 flex w-full flex-wrap items-center justify-center gap-5 text-sm text-zinc-400 sm:order-none sm:w-auto sm:justify-start">
-          <Link href="/" className="hover:text-cb-flame">
-            Главная
-          </Link>
-          <Link href="/cases" className="hover:text-cb-flame">
-            Кейсы
-          </Link>
-        </nav>
         <div className="ml-auto flex flex-wrap items-center gap-3 text-sm">
           {me && balanceStr && (
             <div className="hidden lg:block">
@@ -188,11 +180,6 @@ export function SiteShell({ children }: Props) {
       </header>
 
       <LiveDropsRail drops={drops}>{children}</LiveDropsRail>
-
-      <footer className="border-t border-cb-stroke/80 bg-cb-panel/30 px-6 py-4 text-center text-xs text-zinc-600 backdrop-blur-sm">
-        Логотип можно заменить на свой PNG в <code className="text-zinc-500">public/logo.png</code>{" "}
-        (или оставить <code className="text-zinc-500">logo.svg</code>).
-      </footer>
     </div>
   );
 }

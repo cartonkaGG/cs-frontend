@@ -2,12 +2,22 @@ import { CASE_FRAMES } from "@/components/CaseCard";
 
 export const ACCENT_KEYS = Object.keys(CASE_FRAMES) as string[];
 
+/** Узгоджено з backend `caseConstants.LOOT_RARITIES` */
 export const RARITY_OPTIONS = [
   "common",
   "uncommon",
   "rare",
   "epic",
   "legendary",
+  "consumer",
+  "industrial",
+  "milspec",
+  "mil-spec",
+  "restricted",
+  "classified",
+  "covert",
+  "extraordinary",
+  "contraband",
 ] as const;
 
 export const CATEGORY_SUGGESTIONS = [
@@ -31,6 +41,8 @@ export type AdminCaseFull = {
   name: string;
   price: number;
   image: string;
+  /** Картинка предмета поверх коробки (PNG з прозорістю), опціонально */
+  skinImage: string;
   category: string;
   featured: boolean;
   accent: string;

@@ -79,6 +79,15 @@ const rarityClass: Record<string, string> = {
   rare: "border-blue-600/50 bg-blue-950/25 text-blue-300",
   epic: "border-purple-600/50 bg-purple-950/25 text-purple-300",
   legendary: "border-orange-500/50 bg-red-950/30 text-orange-300",
+  consumer: "border-zinc-500/60 bg-zinc-950/45 text-zinc-300",
+  industrial: "border-slate-500/50 bg-slate-950/30 text-slate-300",
+  milspec: "border-blue-600/50 bg-blue-950/25 text-blue-300",
+  "mil-spec": "border-blue-600/50 bg-blue-950/25 text-blue-300",
+  restricted: "border-violet-600/50 bg-violet-950/25 text-violet-200",
+  classified: "border-fuchsia-600/50 bg-fuchsia-950/25 text-fuchsia-200",
+  covert: "border-red-600/55 bg-red-950/35 text-red-200",
+  extraordinary: "border-amber-500/50 bg-amber-950/25 text-amber-200",
+  contraband: "border-orange-500/55 bg-orange-950/30 text-orange-200",
 };
 
 export default function AdminUsersPage() {

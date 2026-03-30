@@ -8,6 +8,7 @@ export type CaseSummary = {
   name: string;
   price: number;
   image: string | null;
+  skinImage?: string | null;
   category: string;
   featured?: boolean;
   accent: string;
@@ -49,7 +50,30 @@ export function CaseCard({ c }: { c: CaseSummary }) {
         </span>
       )}
       <div className="relative aspect-[5/4] overflow-hidden bg-black/30">
-        {c.image ? (
+        {c.image && c.skinImage ? (
+          <div className="absolute inset-0 origin-center transition duration-500 ease-out group-hover:scale-105">
+            <Image
+              src={c.image}
+              alt=""
+              fill
+              className="object-cover opacity-95 transition duration-500 group-hover:opacity-100"
+              sizes="(max-width: 768px) 100vw, 25vw"
+              unoptimized
+            />
+            <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center p-[8%]">
+              <div className="relative aspect-square w-[72%] max-w-[220px] cb-case-skin-float-y">
+                <Image
+                  src={c.skinImage}
+                  alt=""
+                  fill
+                  className="object-contain drop-shadow-[0_6px_24px_rgba(0,0,0,0.55)] [transform:translateZ(0)]"
+                  sizes="(max-width: 768px) 40vw, 200px"
+                  unoptimized
+                />
+              </div>
+            </div>
+          </div>
+        ) : c.image ? (
           <Image
             src={c.image}
             alt=""
@@ -68,6 +92,20 @@ export function CaseCard({ c }: { c: CaseSummary }) {
             </span>
           </div>
         )}
+        {c.skinImage && !c.image ? (
+          <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center p-[8%]">
+            <div className="relative aspect-square w-[72%] max-w-[220px] cb-case-skin-float-y">
+              <Image
+                src={c.skinImage}
+                alt=""
+                fill
+                className="object-contain drop-shadow-[0_6px_24px_rgba(0,0,0,0.55)] [transform:translateZ(0)]"
+                sizes="(max-width: 768px) 40vw, 200px"
+                unoptimized
+              />
+            </div>
+          </div>
+        ) : null}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-80" />
       </div>
       <div className="relative border-t border-cb-stroke/40 bg-black/20 px-4 py-3 backdrop-blur-sm">

@@ -10,7 +10,18 @@ import {
   type LootRow,
   RARITY_OPTIONS,
 } from "@/lib/caseConfig";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, type ApiFieldErrors } from "@/lib/api";
+
+function formatZodDetails(d?: ApiFieldErrors): string | null {
+  if (!d) return null;
+  const lines: string[] = [];
+  const fe = d.fieldErrors || {};
+  for (const [key, msgs] of Object.entries(fe)) {
+    if (msgs?.length) lines.push(`${key}: ${msgs.join(", ")}`);
+  }
+  if (d.formErrors?.length) lines.push(...d.formErrors);
+  return lines.length ? lines.join("\n") : null;
+}
 
 const emptyLoot = (): LootRow => ({
   name: "",
@@ -28,6 +39,7 @@ export function CaseEditorForm({ mode, initial }: Props) {
   const [name, setName] = useState(initial?.name || "");
   const [price, setPrice] = useState(String(initial?.price ?? 0));
   const [image, setImage] = useState(initial?.image || "");
+  const [skinImage, setSkinImage] = useState(initial?.skinImage || "");
   const [category, setCategory] = useState(initial?.category || "popular");
   const [featured, setFeatured] = useState(Boolean(initial?.featured));
   const [accent, setAccent] = useState(initial?.accent || "amber");
@@ -39,43 +51,55 @@ export function CaseEditorForm({ mode, initial }: Props) {
 
   const payload = useCallback(() => {
     const p = Number(price);
+    const rawItems = items.map((it) => ({
+      name: it.name.trim(),
+      rarity: it.rarity,
+      sellPrice: Number(it.sellPrice) || 0,
+      weight: Math.max(1, Math.floor(Number(it.weight)) || 1),
+      image: (it.image || "").trim(),
+    }));
     return {
       slug: slug.trim().toLowerCase(),
       name: name.trim(),
       price: Number.isFinite(p) ? p : 0,
       image: image.trim(),
+      skinImage: skinImage.trim(),
       category: category.trim() || "popular",
       featured,
-      accent,
-      items: items.map((it) => ({
-        name: it.name.trim(),
-        rarity: it.rarity,
-        sellPrice: Number(it.sellPrice) || 0,
-        weight: Math.max(1, Math.floor(Number(it.weight)) || 1),
-        image: (it.image || "").trim(),
-      })),
+      accent: ACCENT_KEYS.includes(accent) ? accent : "amber",
+      items: rawItems.filter((it) => it.name.length > 0),
     };
-  }, [slug, name, price, image, category, featured, accent, items]);
+  }, [slug, name, price, image, skinImage, category, featured, accent, items]);
 
   async function save() {
     setErr(null);
     setSaving(true);
     const body = payload();
+    const namedItems = body.items.filter((it) => it.name.length > 0);
+    if (namedItems.length === 0) {
+      setSaving(false);
+      setErr("Додайте хоча б один предмет у списку з непорожньою назвою.");
+      return;
+    }
+    const saveBody = { ...body, items: namedItems };
     if (mode === "new") {
       const r = await apiFetch<{ case: AdminCaseFull }>("/api/admin/cases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(saveBody),
       });
       setSaving(false);
       if (!r.ok) {
-        setErr(r.error || "Ошибка сохранения");
+        const hint = formatZodDetails(r.details);
+        setErr(
+          [r.error || "Ошибка сохранения", hint].filter(Boolean).join("\n\n")
+        );
         return;
       }
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("cd-cases-updated"));
       }
-      router.push(`/admin/cases/${body.slug}`);
+      router.push(`/admin/cases/${saveBody.slug}`);
       router.refresh();
       return;
     }
@@ -83,17 +107,23 @@ export function CaseEditorForm({ mode, initial }: Props) {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: body.name,
-        price: body.price,
-        image: body.image,
-        category: body.category,
-        featured: body.featured,
-        accent: body.accent,
-        items: body.items,
+        name: saveBody.name,
+        price: saveBody.price,
+        image: saveBody.image,
+        skinImage: saveBody.skinImage,
+        category: saveBody.category,
+        featured: saveBody.featured,
+        accent: saveBody.accent,
+        items: saveBody.items,
       }),
     });
     setSaving(false);
-    if (!r.ok) setErr(r.error || "Ошибка сохранения");
+    if (!r.ok) {
+      const hint = formatZodDetails(r.details);
+      setErr(
+        [r.error || "Ошибка сохранения", hint].filter(Boolean).join("\n\n")
+      );
+    }
     else {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("cd-cases-updated"));
@@ -193,13 +223,24 @@ export function CaseEditorForm({ mode, initial }: Props) {
         </label>
         <label className="block space-y-1 lg:col-span-2">
           <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-            Изображение кейса (URL)
+            Коробка кейса — статичное изображение (URL)
           </span>
           <input
             value={image}
             onChange={(e) => setImage(e.target.value)}
             className="w-full rounded-lg border border-cb-stroke bg-black/40 px-3 py-2 text-white"
-            placeholder="https://… или оставьте пустым"
+            placeholder="https://… фон открытого кейса"
+          />
+        </label>
+        <label className="block space-y-1 lg:col-span-2">
+          <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+            Скин поверх кейса (URL, лучше PNG с прозрачностью)
+          </span>
+          <input
+            value={skinImage}
+            onChange={(e) => setSkinImage(e.target.value)}
+            className="w-full rounded-lg border border-cb-stroke bg-black/40 px-3 py-2 text-white"
+            placeholder="https://… оружие / предмет поверх коробки"
           />
         </label>
         <label className="flex items-center gap-2">

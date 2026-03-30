@@ -9,6 +9,15 @@ const RARITY_BAR: Record<string, string> = {
   rare: "bg-blue-500",
   epic: "bg-purple-500",
   legendary: "bg-cb-flame shadow-[0_0_10px_rgba(255,49,49,0.7)]",
+  consumer: "bg-zinc-400",
+  industrial: "bg-slate-400",
+  milspec: "bg-blue-500",
+  "mil-spec": "bg-blue-500",
+  restricted: "bg-violet-500",
+  classified: "bg-fuchsia-500",
+  covert: "bg-red-600",
+  extraordinary: "bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.45)]",
+  contraband: "bg-orange-500",
 };
 
 function DropRow({ d }: { d: LiveDrop }) {
@@ -42,7 +51,7 @@ export function LiveDropsRail({ drops, children }: Props) {
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
       <aside className="relative hidden h-auto min-h-0 w-[min(18rem,100%)] shrink-0 flex-col border-r border-cb-stroke/80 bg-gradient-to-b from-[#06060c]/95 to-[#020204] lg:flex lg:h-[calc(100dvh-52px)] lg:sticky lg:top-[52px] lg:self-start">
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pt-1">
+        <div className="min-h-0 flex-1 overflow-hidden overflow-x-hidden pt-1">
           {drops.length === 0 ? (
             <p className="p-4 text-center text-xs leading-relaxed text-zinc-500">
               Пока никто не открыл кейс. Откройте свой — дроп появится здесь в реальном времени.

@@ -25,6 +25,7 @@ const config: Config = {
       animation: {
         marquee: "marquee 38s linear infinite",
         "case-roulette-wait": "caseRouletteWait 0.48s linear infinite",
+        "case-roulette-wait-y": "caseRouletteWaitY 0.48s linear infinite",
       },
       keyframes: {
         marquee: {
@@ -34,6 +35,10 @@ const config: Config = {
         caseRouletteWait: {
           "0%": { transform: "translateX(0)" },
           "100%": { transform: "translateX(-136px)" },
+        },
+        caseRouletteWaitY: {
+          "0%": { transform: "translateY(0)" },
+          "100%": { transform: "translateY(-112px)" },
         },
       },
     },
