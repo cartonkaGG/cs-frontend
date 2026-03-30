@@ -375,7 +375,7 @@ export default function ProfilePage() {
                     href="/"
                     className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-orange-600 to-rose-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-orange-900/35 transition hover:brightness-110"
                   >
-                    К кейсам
+                    На главную
                   </Link>
                 </div>
               </>
