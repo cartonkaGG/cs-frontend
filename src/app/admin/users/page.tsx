@@ -90,6 +90,8 @@ export default function AdminUsersPage() {
   const [balanceValue, setBalanceValue] = useState<string>("0");
   const [balanceBusy, setBalanceBusy] = useState(false);
   const [balanceErr, setBalanceErr] = useState<string | null>(null);
+  const [roleBusy, setRoleBusy] = useState(false);
+  const [roleErr, setRoleErr] = useState<string | null>(null);
 
   const isValid = useMemo(() => {
     const s = steamId.trim();
@@ -272,6 +274,54 @@ export default function AdminUsersPage() {
               {balanceErr && (
                 <p className="mt-3 text-sm text-red-300">{balanceErr}</p>
               )}
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-cb-stroke/50 bg-black/20 p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-sm font-bold text-white">Управление правами</p>
+                  <p className="mt-1 text-xs text-zinc-400">
+                    Можно выдавать и снимать роль администратора.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-end gap-3">
+                  <button
+                    type="button"
+                    disabled={roleBusy}
+                    onClick={async () => {
+                      setRoleBusy(true);
+                      setRoleErr(null);
+                      try {
+                        const sid = steamId.trim();
+                        const makeAdmin = data.user.role !== "admin";
+                        const r = await apiFetch<{ ok: boolean; role: string }>(
+                          `/api/admin/users/${sid}/role`,
+                          {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ role: makeAdmin ? "admin" : "user" }),
+                          },
+                        );
+                        if (!r.ok) {
+                          setRoleErr(r.error || "Ошибка");
+                          return;
+                        }
+                        await loadUser();
+                      } finally {
+                        setRoleBusy(false);
+                      }
+                    }}
+                    className="min-h-[2.7rem] rounded-xl border border-violet-500/60 bg-violet-950/40 px-5 py-2 text-sm font-bold text-violet-200 transition hover:bg-violet-900/60 disabled:opacity-50"
+                  >
+                    {roleBusy
+                      ? "Сохраняем…"
+                      : data.user.role === "admin"
+                        ? "Снять админа"
+                        : "Сделать админом"}
+                  </button>
+                </div>
+              </div>
+              {roleErr && <p className="mt-3 text-sm text-red-300">{roleErr}</p>}
             </div>
           </div>
 
