@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { normRarity, rarityCardFill } from "@/components/CaseRoulette";
 import { SiteShell } from "@/components/SiteShell";
 import { apiFetch, getToken } from "@/lib/api";
 import { formatRub } from "@/lib/money";
@@ -25,26 +26,45 @@ type CatalogItem = {
   image: string | null;
 };
 
-type HistRow = {
-  at: string;
-  win: boolean;
-  chancePct: number;
-  roll: number;
-  threshold: number;
-  inputSum: number;
-  targetPrice: number;
-  targetName: string;
+const RARITY_CARD_BORDER: Record<string, string> = {
+  common: "border-zinc-500/55",
+  uncommon: "border-emerald-500/50",
+  rare: "border-blue-500/50",
+  epic: "border-fuchsia-500/50",
+  legendary: "border-amber-400/55",
+  consumer: "border-zinc-400/50",
+  industrial: "border-slate-400/50",
+  milspec: "border-blue-500/50",
+  "mil-spec": "border-blue-500/50",
+  restricted: "border-violet-500/50",
+  classified: "border-fuchsia-500/50",
+  covert: "border-red-600/55",
+  extraordinary: "border-amber-400/55",
+  contraband: "border-orange-500/55",
 };
 
-function normRarityBar(r: string) {
-  const k = String(r || "common").toLowerCase();
-  if (k.includes("covert") || k.includes("extraordinary")) return "bg-red-600";
-  if (k.includes("classified")) return "bg-fuchsia-600";
-  if (k.includes("restricted")) return "bg-violet-500";
-  if (k.includes("mil")) return "bg-rose-800";
-  if (k.includes("rare") || k.includes("legendary")) return "bg-amber-400";
-  if (k.includes("epic")) return "bg-pink-500";
-  return "bg-zinc-500";
+/** Те саме залиття, що й картки рулетки кейсу + бордер. Fallback для дивних рядків з API. */
+function rarityCardSurface(r: string) {
+  let rk = normRarity(r);
+  if (!(rk in rarityCardFill)) {
+    const k = String(r || "").toLowerCase();
+    if (k.includes("extraordinary")) rk = "extraordinary";
+    else if (k.includes("contraband")) rk = "contraband";
+    else if (k.includes("covert")) rk = "covert";
+    else if (k.includes("classified")) rk = "classified";
+    else if (k.includes("restricted")) rk = "restricted";
+    else if (k.includes("legendary")) rk = "legendary";
+    else if (k.includes("uncommon")) rk = "uncommon";
+    else if (k.includes("milspec") || k.includes("mil-spec") || k.includes("mil spec")) rk = "milspec";
+    else if (k.includes("industrial")) rk = "industrial";
+    else if (k.includes("consumer")) rk = "consumer";
+    else if (k.includes("epic")) rk = "epic";
+    else if (k.includes("rare")) rk = "rare";
+    else rk = "common";
+  }
+  const fill = rarityCardFill[rk] || rarityCardFill.common;
+  const line = RARITY_CARD_BORDER[rk] || RARITY_CARD_BORDER.common;
+  return `${line} ${fill}`;
 }
 
 function rarityTint(r: string) {
@@ -136,17 +156,6 @@ function UpgradeGauge({
         >
           <div className="absolute top-[7%] h-[30%] w-[5px] rounded-full bg-gradient-to-b from-white via-red-400 to-cb-flame shadow-[0_0_16px_rgba(255,49,49,0.9)]" />
         </div>
-        <div className="pointer-events-none absolute inset-[16%] flex items-center justify-center">
-          <div className="relative h-full w-full">
-            <Image
-              src="/upgrade-gauge.png"
-              alt=""
-              fill
-              className="object-contain opacity-95 drop-shadow-[0_0_28px_rgba(255,49,49,0.35)]"
-              unoptimized
-            />
-          </div>
-        </div>
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[9px] font-bold tracking-tight text-zinc-500">
           <span className="absolute top-[6%]">100%</span>
           <span className="absolute bottom-[6%]">0%</span>
@@ -156,7 +165,7 @@ function UpgradeGauge({
       </div>
       {done && roll != null ? (
         <p className="mt-2 text-center text-[11px] text-zinc-500">
-          roll {(roll * 100).toFixed(2)}% · шанс {chancePct.toFixed(1)}%
+          бросок {(roll * 100).toFixed(2)}% · шанс {chancePct.toFixed(2)}%
         </p>
       ) : null}
     </div>
@@ -169,12 +178,10 @@ const panelClass =
 export default function UpgradePage() {
   const [inventory, setInventory] = useState<InvItem[]>([]);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
-  const [history, setHistory] = useState<HistRow[]>([]);
   const [balance, setBalance] = useState<number>(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [targetId, setTargetId] = useState<string>("");
   const [chancePct, setChancePct] = useState<number>(0);
-  const [rtpPct, setRtpPct] = useState<number>(0);
   const [nominalPct, setNominalPct] = useState<number>(0);
   const [busy, setBusy] = useState(false);
   const [spinning, setSpinning] = useState(false);
@@ -188,6 +195,11 @@ export default function UpgradePage() {
   const [priceMax, setPriceMax] = useState("");
   const [gridView, setGridView] = useState(true);
   const [balanceBoostPct, setBalanceBoostPct] = useState(0);
+  const [previewMeta, setPreviewMeta] = useState<{
+    nominalRawPct: number;
+    cappedChance: boolean;
+    maxChancePct: number;
+  } | null>(null);
 
   const loadAll = useCallback(async () => {
     if (!getToken()) {
@@ -195,17 +207,15 @@ export default function UpgradePage() {
       setBalance(0);
       return;
     }
-    const [meR, catR, histR] = await Promise.all([
+    const [meR, catR] = await Promise.all([
       apiFetch<{ inventory: InvItem[]; balance: number }>("/api/me"),
       apiFetch<{ items: CatalogItem[] }>("/api/upgrade/catalog"),
-      apiFetch<{ history: HistRow[] }>("/api/upgrade/history"),
     ]);
     if (meR.ok && meR.data) {
       setInventory(Array.isArray(meR.data.inventory) ? meR.data.inventory : []);
       setBalance(Number(meR.data.balance) || 0);
     }
     if (catR.ok && catR.data?.items) setCatalog(catR.data.items);
-    if (histR.ok && histR.data?.history) setHistory(histR.data.history);
   }, []);
 
   useEffect(() => {
@@ -221,18 +231,27 @@ export default function UpgradePage() {
     return s;
   }, [selected, inventory]);
 
+  const balanceBoostRub = useMemo(() => {
+    const b = Number(balance) || 0;
+    const p = Math.min(100, Math.max(0, Number(balanceBoostPct) || 0));
+    if (b <= 0 || p <= 0) return 0;
+    return Math.min(b, Math.floor((b * p) / 100));
+  }, [balance, balanceBoostPct]);
+
+  const stakeTotal = useMemo(() => inputSum + balanceBoostRub, [inputSum, balanceBoostRub]);
+
   const validTargets = useMemo(() => {
     const q = search.trim().toLowerCase();
     const minP = priceMin === "" ? null : Number(priceMin);
     const maxP = priceMax === "" ? null : Number(priceMax);
     return catalog.filter((t) => {
-      if (t.price <= inputSum) return false;
+      if (t.price <= stakeTotal) return false;
       if (q && !t.name.toLowerCase().includes(q)) return false;
       if (minP != null && Number.isFinite(minP) && t.price < minP) return false;
       if (maxP != null && Number.isFinite(maxP) && t.price > maxP) return false;
       return true;
     });
-  }, [catalog, inputSum, search, priceMin, priceMax]);
+  }, [catalog, stakeTotal, search, priceMin, priceMax]);
 
   useEffect(() => {
     if (!targetId || !validTargets.some((t) => t.id === targetId)) {
@@ -243,29 +262,60 @@ export default function UpgradePage() {
   const refreshPreview = useCallback(async () => {
     if (!getToken() || selected.size < 1 || !targetId) {
       setChancePct(0);
-      setRtpPct(0);
       setNominalPct(0);
+      setPreviewMeta(null);
       return;
     }
     const r = await apiFetch<{
       chancePct: number;
       targetRtpPct: number;
       nominalPct: number;
+      nominalRawPct?: number;
+      serverBalance?: number;
+      limits?: {
+        minPct: number;
+        maxPct: number;
+        cappedChanceByMax?: boolean;
+      };
     }>("/api/upgrade/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ inputItemIds: Array.from(selected), targetId }),
+      body: JSON.stringify({
+        inputItemIds: Array.from(selected),
+        targetId,
+        balanceBoostPct,
+      }),
     });
     if (r.ok && r.data) {
       setChancePct(r.data.chancePct);
-      setRtpPct(r.data.targetRtpPct);
       setNominalPct(r.data.nominalPct);
+      if (typeof r.data.serverBalance === "number" && Number.isFinite(r.data.serverBalance)) {
+        setBalance(r.data.serverBalance);
+      }
+      const lim = r.data.limits;
+      const raw = r.data.nominalRawPct;
+      if (
+        lim != null &&
+        typeof raw === "number" &&
+        Number.isFinite(lim.maxPct) &&
+        Number.isFinite(raw)
+      ) {
+        setPreviewMeta({
+          nominalRawPct: raw,
+          cappedChance: Boolean(lim.cappedChanceByMax),
+          maxChancePct: lim.maxPct,
+        });
+      } else {
+        setPreviewMeta(null);
+      }
       setErr(null);
     } else {
       setChancePct(0);
+      setNominalPct(0);
+      setPreviewMeta(null);
       setErr(r.error || null);
     }
-  }, [selected, targetId]);
+  }, [selected, targetId, balanceBoostPct]);
 
   useEffect(() => {
     const t = setTimeout(() => void refreshPreview(), 320);
@@ -287,14 +337,14 @@ export default function UpgradePage() {
     if (inputSum <= 0) return;
     let id: string | null = null;
     if (kind === "shuffle") {
-      const pool = catalog.filter((t) => t.price > inputSum);
+      const pool = catalog.filter((t) => t.price > stakeTotal);
       if (pool.length) id = pool[Math.floor(Math.random() * pool.length)]!.id;
-    } else if (kind === "x2") id = pickTargetNearPrice(catalog, inputSum, inputSum * 2);
-    else if (kind === "x5") id = pickTargetNearPrice(catalog, inputSum, inputSum * 5);
-    else if (kind === "x10") id = pickTargetNearPrice(catalog, inputSum, inputSum * 10);
-    else if (kind === "p30") id = pickTargetNearPrice(catalog, inputSum, inputSum / 0.3);
-    else if (kind === "p50") id = pickTargetNearPrice(catalog, inputSum, inputSum / 0.5);
-    else if (kind === "p75") id = pickTargetNearPrice(catalog, inputSum, inputSum / 0.75);
+    } else if (kind === "x2") id = pickTargetNearPrice(catalog, stakeTotal, stakeTotal * 2);
+    else if (kind === "x5") id = pickTargetNearPrice(catalog, stakeTotal, stakeTotal * 5);
+    else if (kind === "x10") id = pickTargetNearPrice(catalog, stakeTotal, stakeTotal * 10);
+    else if (kind === "p30") id = pickTargetNearPrice(catalog, stakeTotal, stakeTotal / 0.3);
+    else if (kind === "p50") id = pickTargetNearPrice(catalog, stakeTotal, stakeTotal / 0.5);
+    else if (kind === "p75") id = pickTargetNearPrice(catalog, stakeTotal, stakeTotal / 0.75);
     if (id) {
       setTargetId(id);
       setShowResult(null);
@@ -316,16 +366,19 @@ export default function UpgradePage() {
       win: boolean;
       chancePct: number;
       roll: number;
-      targetRtpPct: number;
       target?: { name: string };
     }>("/api/upgrade/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ inputItemIds: Array.from(selected), targetId }),
+      body: JSON.stringify({
+        inputItemIds: Array.from(selected),
+        targetId,
+        balanceBoostPct,
+      }),
     });
     setBusy(false);
     if (!r.ok) {
-      setErr(r.error || "Помилка");
+      setErr(r.error || "Ошибка");
       return;
     }
     const data = r.data!;
@@ -333,13 +386,13 @@ export default function UpgradePage() {
     setSpinKey((k) => k + 1);
     setLastRoll(data.roll);
     setChancePct(data.chancePct);
-    setRtpPct(data.targetRtpPct);
     setSpinning(true);
     window.setTimeout(() => {
       setSpinning(false);
       setShowResult(data.win ? "win" : "loss");
       setSelected(new Set());
       setTargetId("");
+      setBalanceBoostPct(0);
       void loadAll();
       window.dispatchEvent(new CustomEvent("cd-balance-updated"));
     }, 3300);
@@ -362,31 +415,37 @@ export default function UpgradePage() {
             <p className="mb-4 rounded-lg border border-red-500/35 bg-red-950/25 px-3 py-2 text-sm text-red-300">{err}</p>
           ) : null}
 
-          {/* Верхня зона: 3 колонки */}
+          {/* Верх: 3 колонки */}
           <div className="relative mb-6 rounded-2xl border border-cb-stroke/80 bg-cb-panel/80 bg-cb-mesh p-4 shadow-[0_20px_60px_rgba(0,0,0,0.45)] sm:p-5">
-            <div className="absolute left-3 top-3 flex gap-1 sm:left-4 sm:top-4">
-              {["i", "⚙", "♪", "⚡"].map((x, i) => (
-                <span
-                  key={i}
-                  className="flex h-8 w-8 cursor-default items-center justify-center rounded-lg border border-cb-stroke/80 bg-black/50 text-[12px] text-zinc-500"
-                  title=""
-                >
-                  {x}
-                </span>
-              ))}
-            </div>
-
-            <div className="mt-8 grid grid-cols-1 gap-5 pt-2 xl:mt-2 xl:grid-cols-[1fr_minmax(260px,320px)_1fr] xl:items-stretch xl:gap-6">
-              {/* Ліво: внесок */}
+            <div className="grid grid-cols-1 gap-5 pt-2 xl:grid-cols-[1fr_minmax(260px,320px)_1fr] xl:items-stretch xl:gap-6">
+              {/* Слева: вклад */}
               <div className={`flex flex-col ${panelClass} p-4`}>
-                <h3 className="mb-3 text-center text-[12px] font-bold uppercase tracking-wider text-zinc-500">
-                  Оберіть до 6 предметів на апгрейд
+                <h3 className="mb-2 text-center text-[12px] font-bold uppercase tracking-wider text-zinc-500">
+                  Выберите до 6 предметов для апгрейда
                 </h3>
+                <p className="mb-3 text-center text-[11px] leading-relaxed text-zinc-400">
+                  Предметы: <span className="font-mono text-zinc-200">{formatRub(inputSum)} ₽</span>
+                  {balanceBoostRub > 0 ? (
+                    <>
+                      {" "}
+                      + баланс <span className="font-mono text-zinc-200">{formatRub(balanceBoostRub)} ₽</span>
+                    </>
+                  ) : null}
+                  <br />
+                  Всего в апгрейд:{" "}
+                  <span className="font-mono font-semibold text-cb-flame">{formatRub(stakeTotal)} ₽</span>
+                  {selected.size > 0 ? (
+                    <span className="text-zinc-500">
+                      {" "}
+                      · {selected.size} шт.
+                    </span>
+                  ) : null}
+                </p>
                 <div className="flex min-h-[160px] flex-1 flex-wrap content-center justify-center gap-2 rounded-xl border border-dashed border-cb-stroke/60 bg-black/40 p-3">
                   {selectedItems.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 py-6 text-zinc-600">
                       <div className="text-4xl opacity-40">⌖</div>
-                      <p className="text-center text-[11px]">Оберіть предмети знизу</p>
+                      <p className="text-center text-[11px]">Выберите предметы ниже</p>
                     </div>
                   ) : (
                     selectedItems.map((it) => (
@@ -394,7 +453,7 @@ export default function UpgradePage() {
                         key={it.itemId}
                         type="button"
                         onClick={() => toggleSel(it.itemId)}
-                        className="relative h-16 w-[4.5rem] overflow-hidden rounded-lg border border-cb-stroke/70 bg-black/60"
+                        className={`relative h-16 w-[4.5rem] overflow-hidden rounded-lg border ${rarityCardSurface(it.rarity || "common")} shadow-inner`}
                       >
                         {it.image ? (
                           <Image src={it.image} alt="" fill className="object-contain p-0.5" unoptimized />
@@ -407,10 +466,8 @@ export default function UpgradePage() {
                 </div>
                 <div className="mt-4 border-t border-cb-stroke/50 pt-3">
                   <div className="mb-2 flex items-center justify-between text-[11px] text-zinc-500">
-                    <span>Додати баланс до шансу</span>
-                    <span className="font-mono text-cb-flame">
-                      {formatRub((balance * balanceBoostPct) / 100)} ₽
-                    </span>
+                    <span>Добавить баланс к шансу</span>
+                    <span className="font-mono text-cb-flame">{formatRub(balanceBoostRub)} ₽</span>
                   </div>
                   <input
                     type="range"
@@ -421,29 +478,41 @@ export default function UpgradePage() {
                     className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-cb-stroke/80 accent-red-600"
                   />
                   <p className="mt-1 text-[10px] text-zinc-600">
-                    Візуально (макс. {formatRub(balance)} ₽). Налаштування шансу — на сервері через RTP.
+                    Списывается с баланса при апгрейде (до {formatRub(balance)} ₽). Увеличивает шанс так же, как
+                    рост стоимости вклада.
                   </p>
                 </div>
               </div>
 
-              {/* Центр: діаметр + кнопка */}
+              {/* Центр: индикатор + кнопка */}
               <div className="flex flex-col items-center justify-center gap-3">
                 {chancePct > 0 ? (
-                  <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-zinc-400">
-                    <span>
-                      Шанс: <strong className="font-mono text-cb-flame">{chancePct.toFixed(1)}%</strong>
-                    </span>
-                    <span className="text-cb-stroke">|</span>
-                    <span>
-                      база <span className="font-mono text-zinc-300">{nominalPct.toFixed(1)}%</span>
-                    </span>
-                    <span className="text-cb-stroke">|</span>
-                    <span>
-                      RTP <span className="font-mono text-red-400/95">{rtpPct.toFixed(1)}%</span>
-                    </span>
+                  <div className="flex max-w-[280px] flex-col items-center gap-1 text-[11px] text-zinc-400">
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <span>
+                        Шанс: <strong className="font-mono text-cb-flame">{chancePct.toFixed(2)}%</strong>
+                      </span>
+                      <span className="text-cb-stroke">|</span>
+                      <span>
+                        база <span className="font-mono text-zinc-300">{nominalPct.toFixed(2)}%</span>
+                      </span>
+                    </div>
+                    {previewMeta != null &&
+                    Math.abs(previewMeta.nominalRawPct - nominalPct) > 0.02 ? (
+                      <p className="text-center text-[10px] leading-snug text-zinc-500">
+                        частка вкладу до обрізання лімітом:{" "}
+                        <span className="font-mono text-zinc-400">{previewMeta.nominalRawPct.toFixed(2)}%</span>
+                      </p>
+                    ) : null}
+                    {previewMeta?.cappedChance ? (
+                      <p className="text-center text-[10px] leading-snug text-amber-400/90">
+                        шанс на верхній межі ({previewMeta.maxChancePct.toFixed(0)}%): додатковий баланс не збільшує
+                        відображений шанс
+                      </p>
+                    ) : null}
                   </div>
                 ) : (
-                  <p className="text-center text-[11px] text-zinc-500">Оберіть предмети та ціль</p>
+                  <p className="text-center text-[11px] text-zinc-500">Выберите предметы и цель</p>
                 )}
                 <UpgradeGauge
                   chancePct={chancePct}
@@ -454,10 +523,10 @@ export default function UpgradePage() {
                 />
                 {showResult === "win" ? (
                   <p className="max-w-[260px] text-center text-[12px] font-semibold leading-snug text-cb-flame">
-                    Виграш!{lastOutcomeName ? ` ${lastOutcomeName}` : ""} додано в інвентар.
+                    Выигрыш!{lastOutcomeName ? ` ${lastOutcomeName}` : ""} добавлено в инвентарь.
                   </p>
                 ) : showResult === "loss" ? (
-                  <p className="text-center text-[12px] font-semibold text-red-500">Не вдалося. Предмети втрачено.</p>
+                  <p className="text-center text-[12px] font-semibold text-red-500">Не удалось. Предметы потеряны.</p>
                 ) : null}
                 <button
                   type="button"
@@ -468,14 +537,14 @@ export default function UpgradePage() {
                   className="group flex w-full max-w-[260px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-800 to-cb-flame py-3.5 text-[13px] font-black uppercase tracking-widest text-white shadow-[0_10px_36px_rgba(255,49,49,0.35)] transition hover:brightness-110 disabled:opacity-40"
                 >
                   <span className="text-lg leading-none">⇈</span>
-                  {busy || spinning ? "…" : "Прокачати"}
+                  {busy || spinning ? "…" : "Апгрейд"}
                 </button>
               </div>
 
-              {/* Право: ціль */}
+              {/* Справа: цель */}
               <div className={`flex flex-col ${panelClass} p-4`}>
                 <h3 className="mb-3 text-center text-[12px] font-bold uppercase tracking-wider text-zinc-500">
-                  Оберіть зброю, яку хочете отримати
+                  Выберите оружие, которое хотите получить
                 </h3>
                 <div
                   className={`flex min-h-[160px] flex-1 items-center justify-center rounded-xl border border-dashed border-cb-stroke/60 bg-gradient-to-b ${target ? rarityTint(target.rarity) : "from-cb-panel to-black/80"}`}
@@ -491,7 +560,7 @@ export default function UpgradePage() {
                   ) : (
                     <div className="flex flex-col items-center gap-2 py-8 text-zinc-600">
                       <div className="text-4xl opacity-40">◇</div>
-                      <p className="text-[11px]">Ціль з’явиться тут</p>
+                      <p className="text-[11px]">Цель появится здесь</p>
                     </div>
                   )}
                 </div>
@@ -516,7 +585,7 @@ export default function UpgradePage() {
                       {lab}
                     </button>
                   ))}
-                  <button type="button" className={quickBtn} onClick={() => applyQuickPick("shuffle")} title="Випадкова ціль">
+                  <button type="button" className={quickBtn} onClick={() => applyQuickPick("shuffle")} title="Случайная цель">
                     ⧈
                   </button>
                 </div>
@@ -524,12 +593,12 @@ export default function UpgradePage() {
             </div>
           </div>
 
-          {/* Низ: дві панелі */}
+          {/* Низ: две панели */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className={`${panelClass} flex flex-col p-4`}>
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h3 className="text-[13px] font-bold text-white">
-                  Мої предмети <span className="font-normal text-zinc-500">({inventory.length} шт.)</span>
+                  Мои предметы <span className="font-normal text-zinc-500">({inventory.length} шт.)</span>
                 </h3>
                 <div className="flex items-center gap-1 rounded-lg border border-cb-stroke/80 bg-black/50 p-0.5">
                   <button
@@ -552,46 +621,51 @@ export default function UpgradePage() {
               {inventory.length === 0 ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-4 py-12 text-center">
                   <p className="max-w-xs text-[12px] font-semibold uppercase tracking-wide text-zinc-500">
-                    Немає доступних предметів для апгрейду
+                    Нет доступных предметов для апгрейда
                   </p>
                   <Link
                     href="/#cases"
                     className="rounded-xl border-2 border-cb-flame/70 bg-red-950/25 px-6 py-2.5 text-[12px] font-bold uppercase tracking-wide text-cb-flame transition hover:bg-red-950/40"
                   >
-                    Відкрийте будь-який кейс
+                    Откройте любой кейс
                   </Link>
                 </div>
               ) : gridView ? (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {inventory.map((it) => {
-                    const on = selected.has(it.itemId);
-                    return (
-                      <button
-                        key={it.itemId}
-                        type="button"
-                        onClick={() => toggleSel(it.itemId)}
-                        className={`relative overflow-hidden rounded-xl border p-2 text-left transition ${
-                          on
-                            ? "border-cb-flame/80 ring-1 ring-cb-flame/35"
-                            : "border-cb-stroke/80 bg-black/45 hover:border-cb-stroke"
-                        }`}
-                      >
-                        <div className="relative mx-auto mb-1 aspect-[4/3] w-full bg-black/60">
-                          {it.image ? (
-                            <Image src={it.image} alt="" fill className="object-contain p-1" unoptimized />
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-xs text-zinc-600">?</div>
-                          )}
-                        </div>
-                        <div className={`mb-1 h-0.5 w-full rounded ${normRarityBar(it.rarity || "common")}`} />
-                        <p className="line-clamp-2 text-[10px] font-medium leading-tight text-zinc-100">{it.name}</p>
-                        <p className="mt-0.5 font-mono text-[11px] text-cb-flame">{formatRub(it.sellPrice)} ₽</p>
-                      </button>
-                    );
-                  })}
+                <div className="max-h-[min(42vh,440px)] overflow-y-auto overflow-x-hidden pr-1 sm:max-h-[480px]">
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {inventory.map((it) => {
+                      const on = selected.has(it.itemId);
+                      return (
+                        <button
+                          key={it.itemId}
+                          type="button"
+                          onClick={() => toggleSel(it.itemId)}
+                          className={`relative overflow-hidden rounded-lg border p-1 text-left transition ${rarityCardSurface(it.rarity || "common")} ${
+                            on
+                              ? "ring-2 ring-cb-flame/60 shadow-[0_0_14px_rgba(255,49,49,0.25)]"
+                              : "hover:brightness-110"
+                          }`}
+                        >
+                          <div className="relative mx-auto mb-0.5 aspect-square w-full max-h-[4.5rem] bg-black/25">
+                            {it.image ? (
+                              <Image src={it.image} alt="" fill className="object-contain p-0.5" unoptimized />
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-[10px] text-zinc-600">?</div>
+                            )}
+                          </div>
+                          <p className="line-clamp-2 text-[8px] font-medium leading-tight text-zinc-100 sm:text-[9px]">
+                            {it.name}
+                          </p>
+                          <p className="mt-0.5 font-mono text-[9px] text-cb-flame sm:text-[10px]">
+                            {formatRub(it.sellPrice)} ₽
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               ) : (
-                <div className="max-h-[340px] space-y-1 overflow-y-auto pr-1">
+                <div className="max-h-[min(42vh,440px)] space-y-1 overflow-y-auto overflow-x-hidden pr-1 sm:max-h-[480px]">
                   {inventory.map((it) => {
                     const on = selected.has(it.itemId);
                     return (
@@ -599,11 +673,11 @@ export default function UpgradePage() {
                         key={it.itemId}
                         type="button"
                         onClick={() => toggleSel(it.itemId)}
-                        className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left ${
-                          on ? "border-cb-flame/60 bg-red-950/20" : "border-cb-stroke/80 bg-black/45 hover:border-cb-stroke"
+                        className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${rarityCardSurface(it.rarity || "common")} ${
+                          on ? "ring-2 ring-cb-flame/55 shadow-[0_0_12px_rgba(255,49,49,0.2)]" : "hover:brightness-105"
                         }`}
                       >
-                        <div className="relative h-12 w-14 shrink-0 bg-black/60">
+                        <div className="relative h-12 w-14 shrink-0 bg-black/25">
                           {it.image ? (
                             <Image src={it.image} alt="" fill className="object-contain p-0.5" unoptimized />
                           ) : null}
@@ -618,16 +692,37 @@ export default function UpgradePage() {
                 </div>
               )}
               <p className="mt-3 border-t border-cb-stroke/50 pt-2 text-[11px] text-zinc-500">
-                Внесок: <span className="font-mono text-white">{formatRub(inputSum)} ₽</span> · обрано{" "}
-                {selected.size}/6
+                Взнос: <span className="font-mono text-white">{formatRub(stakeTotal)} ₽</span> · выбрано {selected.size}
+                /6
               </p>
             </div>
 
             <div className={`${panelClass} flex flex-col p-4`}>
-              <h3 className="mb-3 text-[13px] font-bold text-white">Оберіть предмет</h3>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-[13px] font-bold text-white">
+                  Выберите предмет{" "}
+                  <span className="font-normal text-zinc-500">({validTargets.length} шт.)</span>
+                </h3>
+                <div className="flex items-center gap-1 rounded-lg border border-cb-stroke/80 bg-black/50 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setGridView(true)}
+                    className={`rounded-md px-2 py-1 text-[11px] ${gridView ? "bg-red-600/30 text-cb-flame" : "text-zinc-500"}`}
+                  >
+                    ▦
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGridView(false)}
+                    className={`rounded-md px-2 py-1 text-[11px] ${!gridView ? "bg-red-600/30 text-cb-flame" : "text-zinc-500"}`}
+                  >
+                    ☰
+                  </button>
+                </div>
+              </div>
               <div className="mb-3 flex flex-wrap items-end gap-2">
                 <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wider text-zinc-500">
-                  Ціна від
+                  Цена от
                   <input
                     type="number"
                     min={0}
@@ -649,100 +744,94 @@ export default function UpgradePage() {
                   />
                 </label>
                 <div className="flex flex-1 flex-col gap-1 sm:min-w-[140px]">
-                  <span className="text-[10px] uppercase tracking-wider text-zinc-500">Пошук</span>
+                  <span className="text-[10px] uppercase tracking-wider text-zinc-500">Поиск</span>
                   <div className="flex rounded-lg border border-cb-stroke bg-black/50">
                     <input
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Назва…"
+                      placeholder="Название…"
                       className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-[12px] text-white placeholder:text-zinc-600"
                     />
                     <span className="flex items-center px-2 text-zinc-500">⌕</span>
                   </div>
                 </div>
               </div>
-              <div className="max-h-[320px] flex-1 space-y-1 overflow-y-auto rounded-xl border border-cb-stroke/70 bg-black/35 p-2">
+              <div className="max-h-[min(42vh,440px)] flex-1 overflow-y-auto overflow-x-hidden rounded-xl border border-cb-stroke/70 bg-black/35 p-2 sm:max-h-[480px]">
                 {validTargets.length === 0 ? (
                   <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-                      Використайте пошук або фільтр ціни
+                      Используйте поиск или фильтр цены
                     </p>
-                    <p className="text-[10px] text-zinc-600">Немає цілей дорожчих за внесок</p>
+                    <p className="text-[10px] text-zinc-600">Нет целей дороже взноса</p>
+                  </div>
+                ) : gridView ? (
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {validTargets.slice(0, 100).map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          setTargetId(t.id);
+                          setShowResult(null);
+                          setLastRoll(null);
+                        }}
+                        className={`relative overflow-hidden rounded-lg border p-1 text-left transition ${rarityCardSurface(t.rarity)} ${
+                          targetId === t.id
+                            ? "ring-2 ring-cb-flame/60 shadow-[0_0_14px_rgba(255,49,49,0.25)]"
+                            : "hover:brightness-110"
+                        }`}
+                      >
+                        <div className="relative mx-auto mb-0.5 aspect-square w-full max-h-[4.5rem] bg-black/25">
+                          {t.image ? (
+                            <Image src={t.image} alt="" fill className="object-contain p-0.5" unoptimized />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-[10px] text-zinc-600">?</div>
+                          )}
+                        </div>
+                        <p className="line-clamp-2 text-[8px] font-medium leading-tight text-zinc-100 sm:text-[9px]">
+                          {t.name}
+                        </p>
+                        <p className="mt-0.5 font-mono text-[9px] text-cb-flame sm:text-[10px]">
+                          {formatRub(t.price)} ₽
+                        </p>
+                      </button>
+                    ))}
                   </div>
                 ) : (
-                  validTargets.slice(0, 100).map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => {
-                        setTargetId(t.id);
-                        setShowResult(null);
-                        setLastRoll(null);
-                      }}
-                      className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${
-                        targetId === t.id
-                          ? "border-cb-flame/65 bg-red-950/25"
-                          : "border-transparent hover:bg-white/[0.04]"
-                      }`}
-                    >
-                      <div className="relative h-12 w-14 shrink-0 bg-black/60">
-                        {t.image ? (
-                          <Image src={t.image} alt="" fill className="object-contain p-0.5" unoptimized />
-                        ) : (
-                          <span className="flex h-full items-center justify-center text-[10px] text-zinc-600">?</span>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[11px] font-medium text-zinc-100">{t.name}</p>
-                        <p className="font-mono text-[12px] text-cb-flame">{formatRub(t.price)} ₽</p>
-                      </div>
-                    </button>
-                  ))
+                  <div className="space-y-1">
+                    {validTargets.slice(0, 100).map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          setTargetId(t.id);
+                          setShowResult(null);
+                          setLastRoll(null);
+                        }}
+                        className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${rarityCardSurface(t.rarity)} ${
+                          targetId === t.id
+                            ? "ring-2 ring-cb-flame/55 shadow-[0_0_12px_rgba(255,49,49,0.2)]"
+                            : "hover:brightness-105"
+                        }`}
+                      >
+                        <div className="relative h-12 w-14 shrink-0 bg-black/25">
+                          {t.image ? (
+                            <Image src={t.image} alt="" fill className="object-contain p-0.5" unoptimized />
+                          ) : (
+                            <span className="flex h-full items-center justify-center text-[10px] text-zinc-600">?</span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[11px] font-medium text-zinc-100">{t.name}</p>
+                          <p className="font-mono text-[11px] text-cb-flame">{formatRub(t.price)} ₽</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
           </div>
-
-          {/* Історія */}
-          <section className="mt-8 rounded-2xl border border-cb-stroke/80 bg-cb-panel/50 p-4">
-            <h2 className="mb-3 bg-gradient-to-r from-white to-cb-flame bg-clip-text text-[14px] font-bold text-transparent">
-              Історія апгрейдів
-            </h2>
-            {history.length === 0 ? (
-              <p className="text-[12px] text-zinc-600">Поки порожньо.</p>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-cb-stroke/70">
-                <table className="w-full text-left text-[12px]">
-                  <thead className="border-b border-cb-stroke/80 bg-black/50 text-[10px] uppercase tracking-wider text-zinc-500">
-                    <tr>
-                      <th className="px-3 py-2">Час</th>
-                      <th className="px-3 py-2">Результат</th>
-                      <th className="px-3 py-2 text-right">Шанс</th>
-                      <th className="px-3 py-2 text-right">Roll</th>
-                      <th className="px-3 py-2 text-right">Внесок</th>
-                      <th className="px-3 py-2">Ціль</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((h, i) => (
-                      <tr key={i} className="border-b border-cb-stroke/40 text-zinc-400">
-                        <td className="px-3 py-2 font-mono text-[11px] text-zinc-500">
-                          {new Date(h.at).toLocaleString()}
-                        </td>
-                        <td className={`px-3 py-2 font-semibold ${h.win ? "text-cb-flame" : "text-red-500"}`}>
-                          {h.win ? "Win" : "Loss"}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono text-[11px]">{Number(h.chancePct).toFixed(1)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-[11px]">{Number(h.roll).toFixed(4)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-[11px]">{formatRub(h.inputSum)}</td>
-                        <td className="max-w-[180px] truncate px-3 py-2 text-[11px]">{h.targetName}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
         </div>
       </div>
     </SiteShell>

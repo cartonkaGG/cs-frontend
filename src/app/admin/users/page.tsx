@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { formatRub } from "@/lib/money";
 
@@ -73,6 +73,10 @@ type AdminUserResponse = {
   };
 };
 
+type AdminUsersSummary = {
+  totalBalance: number;
+};
+
 const rarityClass: Record<string, string> = {
   common: "border-zinc-600/80 bg-zinc-950/50 text-zinc-300",
   uncommon: "border-emerald-600/50 bg-emerald-950/20 text-emerald-300",
@@ -102,10 +106,31 @@ export default function AdminUsersPage() {
   const [roleBusy, setRoleBusy] = useState(false);
   const [roleErr, setRoleErr] = useState<string | null>(null);
 
+  const [summary, setSummary] = useState<AdminUsersSummary | null>(null);
+  const [summaryErr, setSummaryErr] = useState<string | null>(null);
+
   const isValid = useMemo(() => {
     const s = steamId.trim();
     return /^\d+$/.test(s);
   }, [steamId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const r = await apiFetch<AdminUsersSummary>("/api/admin/users/summary");
+      if (!r.ok) {
+        if (!cancelled) setSummaryErr(r.error || "Не удалось загрузить сводку");
+        return;
+      }
+      if (!cancelled) {
+        setSummary(r.data || null);
+        setSummaryErr(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function loadUser() {
     const sid = steamId.trim();
@@ -133,6 +158,26 @@ export default function AdminUsersPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-white">Пользователи</h1>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="rounded-2xl border border-cb-stroke bg-gradient-to-br from-black/70 via-cb-panel/80 to-amber-950/40 p-4 shadow-inner">
+          <p className="text-xs font-bold uppercase tracking-widest text-amber-300/80">
+            Суммарный баланс пользователей
+          </p>
+          {summary ? (
+            <p className="mt-2 font-mono text-2xl font-black text-white">
+              {formatRub(summary.totalBalance)} ₽
+            </p>
+          ) : summaryErr ? (
+            <p className="mt-2 text-xs text-red-300">{summaryErr}</p>
+          ) : (
+            <p className="mt-2 text-xs text-zinc-400">Загрузка…</p>
+          )}
+          <p className="mt-1 text-[11px] text-zinc-500">
+            Считается по полю <span className="font-mono text-zinc-300">balance</span> всех аккаунтов.
+          </p>
+        </div>
       </div>
 
       <div className="rounded-xl border border-cb-stroke bg-cb-panel/30 p-5">

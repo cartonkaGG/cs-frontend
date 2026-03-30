@@ -31,6 +31,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               Пользователи
             </Link>
+            <Link href="/admin/audit-logs" className="text-zinc-400 hover:text-white">
+              Логи адмінів
+            </Link>
           </div>
         </div>
         <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">{children}</div>

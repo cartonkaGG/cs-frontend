@@ -345,13 +345,13 @@ export default function ProfilePage() {
                           rarityClass[bestDrop.rarity] || rarityClass.common
                         }`}
                       >
-                          <Image
-                            src={bestDrop.image || "/logo.svg"}
-                            alt=""
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
+                        <Image
+                          src={bestDrop.image || "/logo.svg"}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
                       </div>
                     </div>
                   </div>
