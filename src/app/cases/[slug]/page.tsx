@@ -19,6 +19,13 @@ import { requestAuthModal } from "@/lib/authModal";
 import { sortLootGoldToGray } from "@/lib/caseLootSort";
 import { formatRub } from "@/lib/money";
 
+type CaseDisplayOdds = {
+  referenceRtpPct: number | null;
+  modeledRtpPct: number | null;
+  items: Array<{ name: string; rarity: string; sellPrice: number; chancePct: number }>;
+  note: string;
+};
+
 type CaseInfo = {
   slug: string;
   name: string;
@@ -30,6 +37,7 @@ type CaseInfo = {
   accent: string;
   itemCount: number;
   items: RouletteItem[];
+  displayOdds?: CaseDisplayOdds;
 };
 
 type OpenItem = {
@@ -40,14 +48,17 @@ type OpenItem = {
   image: string;
 };
 
+type FairRoll = { rollU: number; targetRtpPct: number };
+
 type OpenResult = {
   item: OpenItem;
   newBalance: number;
   winIndex: number;
+  fair?: FairRoll;
 };
 
 type BatchOpenResult = {
-  results: Array<{ item: OpenItem; winIndex: number }>;
+  results: Array<{ item: OpenItem; winIndex: number; fair?: FairRoll }>;
   newBalance: number;
   count: number;
 };
@@ -495,6 +506,14 @@ export default function CaseOpenPage() {
     () => sortLootGoldToGray(c?.items ?? []),
     [c?.items],
   );
+
+  const lootChanceByKey = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const row of c?.displayOdds?.items ?? []) {
+      m.set(`${row.name}|${row.sellPrice}`, row.chancePct);
+    }
+    return m;
+  }, [c?.displayOdds?.items]);
   const batchAnimating =
     fastHeroMode &&
     openMultiplier > 1 &&
@@ -756,6 +775,14 @@ export default function CaseOpenPage() {
                             Продать за {formatRub(drop.item.sellPrice)} ₽
                           </button>
                         </div>
+                        {drop.fair ? (
+                          <p className="max-w-md text-center font-mono text-[10px] leading-relaxed text-zinc-500">
+                            Uniform 0…1:{" "}
+                            <span className="text-zinc-400">{drop.fair.rollU}</span>
+                            {" · "}target RTP:{" "}
+                            <span className="text-zinc-400">{drop.fair.targetRtpPct}%</span>
+                          </p>
+                        ) : null}
                       </div>
                     )}
 
@@ -850,12 +877,20 @@ export default function CaseOpenPage() {
                 <h2 className="mb-6 bg-gradient-to-r from-amber-200/90 via-zinc-200 to-zinc-500/90 bg-clip-text text-lg font-bold uppercase tracking-wider text-transparent">
                   Содержимое кейса
                 </h2>
-                <p className="mb-6 text-xs text-zinc-500">
-                  От редких (золото) к частым (серый)
+                <p className="mb-2 text-xs text-zinc-500">
+                  От редких (золото) к частым (серый). На картках — приблизний шанс при базовому RTP{" "}
+                  {c.displayOdds?.referenceRtpPct != null ? (
+                    <span className="font-mono text-zinc-400">({c.displayOdds.referenceRtpPct}%)</span>
+                  ) : null}{" "}
+                  (як таблиця виплат; факт трохи залежить від пулу та балансу RTP).
                 </p>
+                {c.displayOdds?.note ? (
+                  <p className="mb-6 text-[11px] leading-relaxed text-zinc-600">{c.displayOdds.note}</p>
+                ) : null}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                 {lootSortedForGrid.map((it, idx) => {
                   const bar = lootRarityBar[it.rarity] || lootRarityBar.common;
+                  const dropPct = lootChanceByKey.get(`${it.name}|${it.sellPrice}`);
                   return (
                     <div
                       key={`${it.name}-${idx}`}
@@ -864,6 +899,14 @@ export default function CaseOpenPage() {
                       <div className="absolute left-2 top-2 z-10 rounded-md bg-gradient-to-r from-orange-600/90 to-red-600/90 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-md">
                         {formatRub(it.sellPrice)} ₽
                       </div>
+                      {dropPct != null ? (
+                        <div
+                          className="absolute right-2 top-2 z-10 rounded-md border border-amber-500/40 bg-black/70 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-200/95 shadow-md backdrop-blur-sm"
+                          title="Округлений шанс при базовому RTP"
+                        >
+                          ~{dropPct.toFixed(2)}%
+                        </div>
+                      ) : null}
                       <div className="relative aspect-square w-full bg-black/35 p-2">
                         {it.image ? (
                           <Image

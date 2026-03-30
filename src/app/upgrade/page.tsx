@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { normRarity, rarityCardFill } from "@/components/CaseRoulette";
 import { SiteShell } from "@/components/SiteShell";
 import { apiFetch, getToken } from "@/lib/api";
@@ -86,6 +86,14 @@ function pickTargetNearPrice(catalog: CatalogItem[], inputSum: number, targetPri
   return best.id;
 }
 
+/** Коло: довжина дуги = 2πr — червоний сегмент = рівно chancePct% окружності. */
+const GAUGE_R = 36;
+const GAUGE_C = 2 * Math.PI * GAUGE_R;
+
+/** Тривалість обертання стрілки після апгрейду (CSS transition і setTimeout мають збігатися). */
+const UPGRADE_SPIN_DURATION_MS = 6500;
+const UPGRADE_SPIN_DURATION_SEC = UPGRADE_SPIN_DURATION_MS / 1000;
+
 function UpgradeGauge({
   chancePct,
   roll,
@@ -99,8 +107,11 @@ function UpgradeGauge({
   spinKey: number;
   done: boolean;
 }) {
+  const uid = useId().replace(/:/g, "");
+  const gradId = `ug-grad-${uid}`;
+  const glowId = `ug-glow-${uid}`;
   const p = Math.min(100, Math.max(0, chancePct)) / 100;
-  const greenSweep = p * 360;
+  const progressLen = p * GAUGE_C;
   const land = roll == null ? 0 : roll * 360;
   const targetRot = 4 * 360 + land;
   const [rot, setRot] = useState(0);
@@ -115,56 +126,118 @@ function UpgradeGauge({
     else setRot(0);
   }, [spinning, spinKey, done, roll, targetRot]);
 
+  const dashTransition = "stroke-dasharray 0.55s cubic-bezier(0.33, 1, 0.68, 1)";
+
   return (
-    <div className="relative mx-auto flex w-full max-w-[280px] flex-col items-center sm:max-w-[300px]">
+    <div className="relative mx-auto flex w-full max-w-[300px] flex-col items-center sm:max-w-[320px]">
       <div className="relative aspect-square w-full">
-        <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100" aria-hidden>
-          <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(36,20,24,0.9)" strokeWidth="1" />
+        <div
+          className="pointer-events-none absolute inset-[6%] rounded-full bg-red-500/20 blur-2xl"
+          aria-hidden
+        />
+        <svg className="relative z-[1] h-full w-full -rotate-90" viewBox="0 0 100 100" aria-hidden>
+          <defs>
+            <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#fca5a5" />
+              <stop offset="40%" stopColor="#f87171" />
+              <stop offset="100%" stopColor="#dc2626" />
+            </linearGradient>
+            <filter id={glowId} x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="2" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
           <circle
             cx="50"
             cy="50"
-            r="46"
+            r={GAUGE_R}
             fill="none"
-            stroke="rgba(255,49,49,0.85)"
-            strokeWidth="2.5"
-            strokeDasharray={`${(greenSweep / 360) * 289} 289`}
-            strokeLinecap="round"
-            pathLength={289}
+            stroke="rgba(15,10,12,0.95)"
+            strokeWidth="10"
           />
           <circle
             cx="50"
             cy="50"
-            r="46"
+            r={GAUGE_R}
             fill="none"
-            stroke="rgba(94,0,0,0.55)"
-            strokeWidth="2.5"
-            strokeDasharray={`${((360 - greenSweep) / 360) * 289} 289`}
-            strokeDashoffset={`-${(greenSweep / 360) * 289}`}
+            stroke="rgba(55,25,30,0.85)"
+            strokeWidth="8"
+          />
+          <circle
+            cx="50"
+            cy="50"
+            r={GAUGE_R}
+            fill="none"
+            stroke={`url(#${gradId})`}
+            strokeWidth="8"
             strokeLinecap="round"
-            pathLength={289}
+            strokeDasharray={`${progressLen} ${GAUGE_C}`}
+            filter={`url(#${glowId})`}
+            style={{ transition: dashTransition }}
           />
         </svg>
+        <div className="pointer-events-none absolute inset-0 z-[2] text-[10px] font-bold tracking-tight text-zinc-400 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+          <span className="absolute left-1/2 top-[3%] -translate-x-1/2">0%</span>
+          <span className="absolute right-[4%] top-1/2 -translate-y-1/2">25%</span>
+          <span className="absolute bottom-[3%] left-1/2 -translate-x-1/2">50%</span>
+          <span className="absolute left-[4%] top-1/2 -translate-y-1/2">75%</span>
+        </div>
         <div
           key={spinKey}
-          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+          className="pointer-events-none absolute inset-0 z-[4] flex items-center justify-center"
           style={{
             transform: `rotate(${rot}deg)`,
             transition: spinning
-              ? "transform 3.2s cubic-bezier(0.12, 0.85, 0.15, 1)"
+              ? `transform ${UPGRADE_SPIN_DURATION_SEC}s cubic-bezier(0.12, 0.85, 0.15, 1)`
               : "transform 0.35s ease-out",
           }}
         >
-          <div className="absolute top-[7%] h-[30%] w-[5px] rounded-full bg-gradient-to-b from-white via-red-400 to-cb-flame shadow-[0_0_16px_rgba(255,49,49,0.9)]" />
+          <div className="absolute top-[8%] flex h-[34%] w-2.5 items-end justify-center sm:w-3">
+            <div className="h-full w-full rounded-full bg-gradient-to-b from-white via-red-200 to-cb-flame shadow-[0_0_18px_rgba(255,70,70,1)] ring-2 ring-white/30" />
+          </div>
         </div>
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[9px] font-bold tracking-tight text-zinc-500">
-          <span className="absolute top-[6%]">100%</span>
-          <span className="absolute bottom-[6%]">0%</span>
-          <span className="absolute left-[6%]">50%</span>
-          <span className="absolute right-[6%]">50%</span>
+        <div className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center">
+          <div className="rounded-2xl border-2 border-cb-flame/35 bg-black/70 px-3 py-1.5 shadow-[0_0_24px_rgba(220,38,38,0.25)] backdrop-blur-sm sm:px-3.5 sm:py-2">
+            <span className="block text-center text-[8px] font-bold uppercase tracking-wider text-zinc-500">
+              Шанс
+            </span>
+            <span className="font-mono text-base font-black tabular-nums text-cb-flame sm:text-lg">
+              {chancePct.toFixed(2)}%
+            </span>
+          </div>
         </div>
       </div>
+
+      {/* Дублюємо прогрес лінійно — найкраще видно заповнення */}
+      <div className="mt-4 w-full max-w-[280px] px-0.5 sm:max-w-[300px]">
+        <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-zinc-500">
+          <span>Шанс випадіння</span>
+          <span className="font-mono font-semibold text-cb-flame tabular-nums">{chancePct.toFixed(2)}%</span>
+        </div>
+        <div
+          className="relative h-4 w-full overflow-hidden rounded-full border border-cb-stroke/70 bg-zinc-950/95 shadow-inner"
+          role="progressbar"
+          aria-valuenow={Math.round(p * 1000) / 10}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-red-950 via-red-500 to-amber-400 shadow-[0_0_12px_rgba(239,68,68,0.45)] transition-[width] duration-500 ease-out"
+            style={{ width: `${p * 100}%` }}
+          />
+          {p >= 0.12 ? (
+            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold uppercase tracking-wide text-white/90 drop-shadow-md">
+              зона виграшу
+            </span>
+          ) : null}
+        </div>
+      </div>
+
       {done && roll != null ? (
-        <p className="mt-2 text-center text-[11px] text-zinc-500">
+        <p className="mt-3 text-center text-[11px] text-zinc-500">
           бросок {(roll * 100).toFixed(2)}% · шанс {chancePct.toFixed(2)}%
         </p>
       ) : null}
@@ -395,7 +468,7 @@ export default function UpgradePage() {
       setBalanceBoostPct(0);
       void loadAll();
       window.dispatchEvent(new CustomEvent("cd-balance-updated"));
-    }, 3300);
+    }, UPGRADE_SPIN_DURATION_MS);
   }
 
   const target = catalog.find((t) => t.id === targetId);

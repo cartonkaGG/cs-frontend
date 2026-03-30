@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, clearToken, getToken, steamLoginUrl } from "@/lib/api";
 import { formatRub } from "@/lib/money";
@@ -13,6 +14,7 @@ type Me = {
   avatar: string;
   balance: number;
   isAdmin?: boolean;
+  isSupportStaff?: boolean;
 };
 
 type Props = {
@@ -68,6 +70,30 @@ function UpgradeNavIcon({ className }: { className?: string }) {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+function SupportFabLink() {
+  const pathname = usePathname();
+  if (pathname.startsWith("/support")) return null;
+  return (
+    <Link
+      href="/support"
+      aria-label="Підтримка"
+      title="Підтримка"
+      className="fixed bottom-4 right-4 z-[100] flex h-14 w-14 items-center justify-center rounded-full border border-sky-500/40 bg-gradient-to-br from-sky-600/95 via-slate-900 to-slate-950 text-white shadow-[0_0_28px_rgba(56,189,248,0.35)] transition hover:border-sky-400/70 hover:brightness-110 focus-visible:outline focus-visible:ring-2 focus-visible:ring-sky-400/50"
+    >
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden className="text-sky-100">
+        <path
+          d="M12 18a6 6 0 0 0 6-6V8a6 6 0 1 0-12 0v4a6 6 0 0 0 6 6Z"
+          stroke="currentColor"
+          strokeWidth="1.65"
+          strokeLinejoin="round"
+        />
+        <path d="M8 14v2a4 4 0 0 0 8 0v-2" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" />
+        <path d="M12 18v3" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" />
+      </svg>
+    </Link>
   );
 }
 
@@ -218,6 +244,16 @@ export function SiteShell({ children }: Props) {
                   >
                     Профиль и инвентарь
                   </Link>
+                  {me.isSupportStaff && !me.isAdmin && (
+                    <Link
+                      href="/admin/support"
+                      role="menuitem"
+                      className="block px-4 py-2.5 text-sm text-sky-300/95 hover:bg-sky-950/30 hover:text-sky-200"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      Панель підтримки
+                    </Link>
+                  )}
                   {me.isAdmin && (
                     <Link
                       href="/admin/cases"
@@ -251,6 +287,7 @@ export function SiteShell({ children }: Props) {
       </header>
 
       <LiveDropsRail drops={drops}>{children}</LiveDropsRail>
+      <SupportFabLink />
     </div>
   );
 }

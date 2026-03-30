@@ -105,6 +105,7 @@ export default function AdminUsersPage() {
   const [balanceErr, setBalanceErr] = useState<string | null>(null);
   const [roleBusy, setRoleBusy] = useState(false);
   const [roleErr, setRoleErr] = useState<string | null>(null);
+  const [pendingRole, setPendingRole] = useState<"user" | "support" | "admin">("user");
 
   const [summary, setSummary] = useState<AdminUsersSummary | null>(null);
   const [summaryErr, setSummaryErr] = useState<string | null>(null);
@@ -131,6 +132,12 @@ export default function AdminUsersPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!data?.user?.role) return;
+    const r = data.user.role;
+    setPendingRole(r === "admin" ? "admin" : r === "support" ? "support" : "user");
+  }, [data?.user?.role]);
 
   async function loadUser() {
     const sid = steamId.trim();
@@ -335,25 +342,46 @@ export default function AdminUsersPage() {
                 <div>
                   <p className="text-sm font-bold text-white">Управление правами</p>
                   <p className="mt-1 text-xs text-zinc-400">
-                    Можно выдавать и снимать роль администратора.
+                    Користувач, сапорт (лише звернення) або повний адмін.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-end gap-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs font-bold text-zinc-500">Роль</span>
+                    <select
+                      value={pendingRole}
+                      onChange={(e) =>
+                        setPendingRole(e.target.value as "user" | "support" | "admin")
+                      }
+                      className="min-h-[2.7rem] rounded-xl border border-cb-stroke bg-black/30 px-3 py-2 text-sm text-white"
+                    >
+                      <option value="user">Користувач</option>
+                      <option value="support">Сапорт</option>
+                      <option value="admin">Адмін</option>
+                    </select>
+                  </label>
                   <button
                     type="button"
-                    disabled={roleBusy}
+                    disabled={
+                      roleBusy ||
+                      pendingRole ===
+                        (data.user.role === "admin"
+                          ? "admin"
+                          : data.user.role === "support"
+                            ? "support"
+                            : "user")
+                    }
                     onClick={async () => {
                       setRoleBusy(true);
                       setRoleErr(null);
                       try {
                         const sid = steamId.trim();
-                        const makeAdmin = data.user.role !== "admin";
                         const r = await apiFetch<{ ok: boolean; role: string }>(
                           `/api/admin/users/${sid}/role`,
                           {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ role: makeAdmin ? "admin" : "user" }),
+                            body: JSON.stringify({ role: pendingRole }),
                           },
                         );
                         if (!r.ok) {
@@ -367,11 +395,7 @@ export default function AdminUsersPage() {
                     }}
                     className="min-h-[2.7rem] rounded-xl border border-violet-500/60 bg-violet-950/40 px-5 py-2 text-sm font-bold text-violet-200 transition hover:bg-violet-900/60 disabled:opacity-50"
                   >
-                    {roleBusy
-                      ? "Сохраняем…"
-                      : data.user.role === "admin"
-                        ? "Снять админа"
-                        : "Сделать админом"}
+                    {roleBusy ? "Сохраняем…" : "Зберегти роль"}
                   </button>
                 </div>
               </div>
