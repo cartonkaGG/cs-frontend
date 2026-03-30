@@ -214,10 +214,10 @@ export default function UpgradePage() {
 
   const inputSum = useMemo(() => {
     let s = 0;
-    for (const id of selected) {
+    selected.forEach((id) => {
       const it = inventory.find((x) => x.itemId === id);
       if (it) s += Number(it.sellPrice) || 0;
-    }
+    });
     return s;
   }, [selected, inventory]);
 
