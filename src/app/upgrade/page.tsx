@@ -58,7 +58,7 @@ const UPGRADE_TARGET_PRICE_CUR = "text-sm font-medium text-amber-500/75";
 
 const RARITY_CARD_BORDER: Record<string, string> = {
   common: "border-zinc-500/55",
-  uncommon: "border-emerald-500/50",
+  uncommon: "border-sky-400/55",
   rare: "border-blue-500/50",
   epic: "border-fuchsia-500/50",
   legendary: "border-amber-400/55",
@@ -533,9 +533,6 @@ export default function UpgradePage() {
       return;
     }
     const r = await apiFetch<{
-      chancePct: number;
-      targetRtpPct: number;
-      nominalPct: number;
       nominalRawPct?: number;
       serverBalance?: number;
       limits?: {
@@ -637,8 +634,6 @@ export default function UpgradePage() {
       target && stakeTotal > 0 ? fairArcPctFromStakeAndTarget(stakeTotal, target.price) : 0;
     const r = await apiFetch<{
       win: boolean;
-      chancePct: number;
-      nominalPct?: number;
       roll: number;
       threshold?: number;
       target?: { name: string };

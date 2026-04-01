@@ -13,6 +13,7 @@ import {
   rarityCardFill,
   ROULETTE_SPIN_DURATION_MS,
   ROULETTE_SPIN_EASE,
+  ROULETTE_SPIN_ROUNDS,
   rouletteStripHeadSlots,
   rouletteStripSlotCount,
   type RouletteItem,
@@ -22,7 +23,44 @@ import {
 const CARD_STEP_Y = 164;
 const HALF_CARD_Y = 76;
 const TRACK_PAD = 8;
-const SPIN_ROUNDS = 26;
+
+/** Детермінований RNG для стабільної перестановки між рендерами. */
+function mulberry32(seed: number) {
+  return function () {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Унікальний порядок скінів у кільці для кожної колонки (x2–x5), щоб рулетки не були синхронні.
+ * perm[r] = індекс предмета в `items` на візуальній позиції r mod n.
+ */
+function columnRingPermutation(n: number, columnIndex: number): number[] {
+  if (n <= 0) return [];
+  const perm = Array.from({ length: n }, (_, i) => i);
+  const seed =
+    (((columnIndex + 1) * 1_000_003) ^ (n * 524_287) ^ ((columnIndex * 17 + n * 31) << 8)) >>> 0;
+  const rnd = mulberry32(seed);
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    const t = perm[i]!;
+    perm[i] = perm[j]!;
+    perm[j] = t;
+  }
+  return perm;
+}
+
+function invertPermutation(perm: number[]): number[] {
+  const inv = new Array<number>(perm.length);
+  for (let r = 0; r < perm.length; r++) {
+    inv[perm[r]!] = r;
+  }
+  return inv;
+}
+
 const BatchVerticalCard = memo(function BatchVerticalCard({
   item,
   isWinner,
@@ -71,6 +109,7 @@ const BatchVerticalCard = memo(function BatchVerticalCard({
 
 function VerticalColumn({
   items,
+  columnIndex,
   spinWaiting,
   landOnIndex,
   landEpoch,
@@ -78,6 +117,7 @@ function VerticalColumn({
   onStripTransitionEnd,
 }: {
   items: RouletteItem[];
+  columnIndex: number;
   spinWaiting: boolean;
   landOnIndex: number | null;
   landEpoch: number;
@@ -89,14 +129,21 @@ function VerticalColumn({
   const [transitionMs, setTransitionMs] = useState(0);
   const landedRef = useRef(false);
 
+  const n = items.length;
+  const { perm, inv } = useMemo(() => {
+    if (n <= 0) return { perm: [] as number[], inv: [] as number[] };
+    const p = columnRingPermutation(n, columnIndex);
+    return { perm: p, inv: invertPermutation(p) };
+  }, [n, columnIndex]);
+
   const strip = useMemo(() => {
-    if (!items.length) return [];
+    if (!items.length || !perm.length) return [];
     const len = rouletteStripSlotCount(items.length);
-    return Array.from({ length: len }, (_, i) => ({
-      ...items[i % items.length],
-      key: i,
-    }));
-  }, [items]);
+    return Array.from({ length: len }, (_, i) => {
+      const catIdx = perm[i % n] ?? 0;
+      return { ...items[catIdx], key: i };
+    });
+  }, [items, n, perm]);
 
   useLayoutEffect(() => {
     if (!viewportRef.current || !items.length) return;
@@ -105,7 +152,6 @@ function VerticalColumn({
     let rafOuter: number | null = null;
     let rafInner: number | null = null;
 
-    const n = items.length;
     const head = rouletteStripHeadSlots(n);
 
     if (spinWaiting) {
@@ -116,7 +162,7 @@ function VerticalColumn({
       return;
     }
 
-    if (landOnIndex == null) {
+    if (landOnIndex == null || !inv.length) {
       const vh = viewportRef.current.clientHeight;
       const idleIdx = n * 3 + head;
       setTransitionMs(0);
@@ -130,7 +176,8 @@ function VerticalColumn({
     const vh = viewportRef.current.clientHeight;
     const idleIdx = n * 3 + head;
     const idleTy = vh / 2 - HALF_CARD_Y - TRACK_PAD - idleIdx * CARD_STEP_Y;
-    const finalSlot = SPIN_ROUNDS * n + landOnIndex + head;
+    const ringLand = inv[landOnIndex] ?? 0;
+    const finalSlot = ROULETTE_SPIN_ROUNDS * n + ringLand + head;
     const endTy = vh / 2 - HALF_CARD_Y - TRACK_PAD - finalSlot * CARD_STEP_Y;
 
     setTransitionMs(0);
@@ -151,7 +198,7 @@ function VerticalColumn({
       if (rafOuter != null) cancelAnimationFrame(rafOuter);
       if (rafInner != null) cancelAnimationFrame(rafInner);
     };
-  }, [items, spinWaiting, landOnIndex, landEpoch]);
+  }, [items, n, inv, spinWaiting, landOnIndex, landEpoch]);
 
   function onTransitionEnd(e: React.TransitionEvent) {
     if (e.propertyName !== "transform" || transitionMs === 0) return;
@@ -160,10 +207,13 @@ function VerticalColumn({
     onStripTransitionEnd();
   }
 
-  const n = items.length;
   const headSlots = rouletteStripHeadSlots(n);
+  const ringLandWin =
+    landOnIndex != null && inv.length > 0 ? (inv[landOnIndex] ?? 0) : 0;
   const winnerStripIndex =
-    landOnIndex != null && n > 0 ? SPIN_ROUNDS * n + landOnIndex + headSlots : -1;
+    landOnIndex != null && n > 0 && inv.length > 0
+      ? ROULETTE_SPIN_ROUNDS * n + ringLandWin + headSlots
+      : -1;
 
   return (
     <div
@@ -293,6 +343,7 @@ export function CaseBatchVerticalRoulette({
         {Array.from({ length: safeCount }, (_, i) => (
           <VerticalColumn
             key={i}
+            columnIndex={i}
             items={items}
             spinWaiting={spinWaiting}
             landOnIndex={indices?.[i] ?? null}

@@ -11,14 +11,11 @@ type Config = {
   ipnUrlConfigured?: boolean;
   minUsd: number;
   rubPerUsd: number;
-  rubRateSource?: string;
-  rubRateUpdatedAt?: number | null;
   cryptos: CryptoOpt[];
 };
 
 type DepositPreview = {
   rubPerUsd: number;
-  rubRateSource?: string;
   creditRubBase: number;
   bonusPercent: number;
   bonusRub: number;
@@ -193,8 +190,8 @@ export function CryptoTopUpModal({ open, onClose, onSuccess }: Props) {
         </button>
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          {/* Левая полоса — только крипта */}
-          <aside className="flex shrink-0 border-b border-cb-stroke/70 bg-black/35 lg:w-44 lg:flex-col lg:border-b-0 lg:border-r">
+          {/* Ліва колонка: способи оплати (крипта + далі додасте); під «Крипта» — банер FreeKassa */}
+          <aside className="flex shrink-0 flex-col border-b border-cb-stroke/70 bg-black/35 lg:w-44 lg:border-b-0 lg:border-r">
             <div className="flex gap-1 overflow-x-auto p-2 lg:flex-col lg:gap-0 lg:p-3">
               <div className="flex min-w-[120px] items-center gap-2 rounded-lg border-l-2 border-cb-flame bg-cb-flame/10 px-3 py-2.5 lg:min-w-0">
                 <span className="text-lg" aria-hidden>
@@ -205,6 +202,16 @@ export function CryptoTopUpModal({ open, onClose, onSuccess }: Props) {
                   <p className="text-[9px] text-zinc-500">NOWPayments</p>
                 </div>
               </div>
+            </div>
+            <div className="border-t border-cb-stroke/60 px-2 pb-2 pt-1 lg:px-3 lg:pb-3 lg:pt-2">
+              <a href="https://freekassa.net/" target="_blank" rel="noopener noreferrer">
+                <img
+                  src="https://cdn.freekassa.net/banners/big-dark-1.png"
+                  title="Прием платежей на сайте для физических лиц и т.д."
+                  alt=""
+                  className="h-auto w-full max-w-full object-contain"
+                />
+              </a>
             </div>
           </aside>
 
@@ -307,8 +314,8 @@ export function CryptoTopUpModal({ open, onClose, onSuccess }: Props) {
                         <p>
                           База:{" "}
                           <span className="font-mono text-zinc-400">{preview.creditRubBase}</span> ₽ · курс{" "}
-                          <span className="font-mono text-zinc-500">{preview.rubPerUsd.toFixed(2)}</span> ₽/USD (
-                          {rateSourceLabel(preview.rubRateSource)})
+                          <span className="font-mono text-zinc-500">{preview.rubPerUsd.toFixed(2)}</span> ₽/USD (курс
+                          сайта)
                         </p>
                         {preview.bonusPercent > 0 ? (
                           <p className="text-emerald-200/90">
@@ -330,13 +337,12 @@ export function CryptoTopUpModal({ open, onClose, onSuccess }: Props) {
                       <p>
                         ≈ <span className="font-mono text-zinc-400">{guestPreviewRub}</span> ₽ без бонуса (войдите,
                         чтобы увидеть итог с промокодом). Курс{" "}
-                        <span className="font-mono text-zinc-500">{rubPerServer.toFixed(2)}</span> ₽/USD (
-                        {rateSourceLabel(cfg?.rubRateSource)})
+                        <span className="font-mono text-zinc-500">{rubPerServer.toFixed(2)}</span> ₽/USD (курс сайта)
                       </p>
                     ) : rubPerServer != null ? (
                       <p>
-                        Курс <span className="font-mono text-zinc-500">{rubPerServer.toFixed(2)}</span> ₽/USD (
-                        {rateSourceLabel(cfg?.rubRateSource)}). Введите сумму в USD.
+                        Курс <span className="font-mono text-zinc-500">{rubPerServer.toFixed(2)}</span> ₽/USD (курс
+                        сайта). Введите сумму в USD.
                       </p>
                     ) : (
                       <p className="text-zinc-600">Загрузка курса…</p>

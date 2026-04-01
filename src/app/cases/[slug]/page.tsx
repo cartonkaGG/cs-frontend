@@ -21,10 +21,7 @@ import { formatRub } from "@/lib/money";
 import { preferHighResSteamEconomyImage } from "@/lib/steamImage";
 
 type CaseDisplayOdds = {
-  referenceRtpPct: number | null;
-  modeledRtpPct: number | null;
   items: Array<{ name: string; rarity: string; sellPrice: number; chancePct: number }>;
-  note: string;
 };
 
 type CaseInfo = {
@@ -49,17 +46,14 @@ type OpenItem = {
   image: string;
 };
 
-type FairRoll = { rollU: number; targetRtpPct: number };
-
 type OpenResult = {
   item: OpenItem;
   newBalance: number;
   winIndex: number;
-  fair?: FairRoll;
 };
 
 type BatchOpenResult = {
-  results: Array<{ item: OpenItem; winIndex: number; fair?: FairRoll }>;
+  results: Array<{ item: OpenItem; winIndex: number }>;
   newBalance: number;
   count: number;
 };
@@ -72,7 +66,7 @@ function isBatchResponse(d: OpenApiResponse): d is BatchOpenResult {
 
 const lootRarityBar: Record<string, string> = {
   common: "bg-zinc-500",
-  uncommon: "bg-emerald-500",
+  uncommon: "bg-sky-400",
   rare: "bg-blue-500",
   epic: "bg-fuchsia-500",
   legendary: "bg-amber-400",
@@ -152,14 +146,14 @@ function BatchResultMiniCard({
   const bar = rarityBar[rk] || rarityBar.common;
   return (
     <div
-      className={`flex w-[140px] shrink-0 flex-col overflow-hidden rounded-xl border border-cb-stroke/70 shadow-lg sm:w-[160px] ${fill}`}
+      className={`flex h-full min-h-[13.5rem] w-[140px] shrink-0 flex-col overflow-hidden rounded-xl border border-cb-stroke/70 shadow-lg sm:min-h-[15rem] sm:w-[160px] ${fill}`}
     >
-      <div className="relative px-2 pt-2 text-right">
+      <div className="relative shrink-0 px-2 pt-2 text-right">
         <span className="font-mono text-[10px] font-bold text-emerald-400">
           {formatRub(row.item.sellPrice)} ₽
         </span>
       </div>
-      <div className="relative mx-auto h-[100px] w-full px-2 sm:h-[118px]">
+      <div className="relative mx-auto h-[100px] w-full shrink-0 px-2 sm:h-[118px]">
         {row.item.image ? (
           <Image
             src={row.item.image}
@@ -172,16 +166,18 @@ function BatchResultMiniCard({
           <div className="flex h-full items-center justify-center text-zinc-500">?</div>
         )}
       </div>
-      <p className="line-clamp-2 px-2 pb-1 text-center text-[9px] font-semibold leading-tight text-white sm:text-[10px]">
-        {row.item.name}
-      </p>
-      <div className={`h-1 w-full ${bar}`} />
+      <div className="flex min-h-[2.75rem] flex-1 flex-col justify-center px-2 sm:min-h-[3.25rem]">
+        <p className="line-clamp-2 text-center text-[9px] font-semibold leading-tight text-white sm:text-[10px]">
+          {row.item.name}
+        </p>
+      </div>
+      <div className={`mt-auto h-1 w-full shrink-0 ${bar}`} />
       <button
         type="button"
         onClick={() => {
           void onSell();
         }}
-        className="mx-2 mb-2 mt-1.5 rounded-lg bg-emerald-600 py-2 text-[10px] font-bold text-white transition hover:bg-emerald-500 sm:text-xs"
+        className="mx-2 mb-2 mt-1.5 shrink-0 rounded-lg bg-emerald-600 py-2 text-[10px] font-bold text-white transition hover:bg-emerald-500 sm:text-xs"
       >
         Продать
       </button>
@@ -214,7 +210,7 @@ function BatchDropHero({
   }
   if (!rows?.length) return null;
   return (
-    <div className="flex w-full max-w-5xl flex-wrap justify-center gap-3 overflow-x-auto px-1 pb-1 sm:gap-4">
+    <div className="flex w-full max-w-5xl flex-wrap items-stretch justify-center gap-3 overflow-x-auto px-1 pb-1 sm:gap-4">
       {rows.map((row) => (
         <BatchResultMiniCard
           key={row.item.itemId}

@@ -20,14 +20,19 @@ export type RouletteItem = {
 const CARD_STEP = 136;
 const HALF_CARD = 64;
 const TRACK_PAD = 16;
-const SPIN_ROUNDS = 26;
+
+/**
+ * Менше повних циклів = повільніший «потік» карток при тій самій тривалості + менше DOM при x5.
+ * Має збігатися з CaseBatchVerticalRoulette (імпорт ROULETTE_SPIN_ROUNDS).
+ */
+export const ROULETTE_SPIN_ROUNDS = 11;
 
 /**
  * Раніше стрічка була ~48×N карток (сотні DOM + Image) — сильно лагало.
  * Префікс має бути кратний N: слот i показує items[i % N], тож зсув на H дає той самий скін лише якщо H % N === 0.
  */
-const ROULETTE_STRIP_HEAD_MIN = 14;
-const ROULETTE_STRIP_TAIL_SLOTS = 12;
+const ROULETTE_STRIP_HEAD_MIN = 10;
+const ROULETTE_STRIP_TAIL_SLOTS = 8;
 
 /** Кількість «порожніх» слотів на початку стрічки (округлено вгору до кратного N). */
 export function rouletteStripHeadSlots(n: number): number {
@@ -37,16 +42,17 @@ export function rouletteStripHeadSlots(n: number): number {
 
 export function rouletteStripSlotCount(n: number): number {
   if (n <= 0) return 0;
-  return rouletteStripHeadSlots(n) + n * (SPIN_ROUNDS + 1) + ROULETTE_STRIP_TAIL_SLOTS;
+  return rouletteStripHeadSlots(n) + n * (ROULETTE_SPIN_ROUNDS + 1) + ROULETTE_STRIP_TAIL_SLOTS;
 }
 
 /** Тривалість основної прокрутки (очікування API — окремо, без анімації стрічки). */
-export const ROULETTE_SPIN_DURATION_MS = 11000;
-export const ROULETTE_SPIN_EASE = "cubic-bezier(0.06, 0.88, 0.14, 1)";
+export const ROULETTE_SPIN_DURATION_MS = 5800;
+/** Плавніше гальмування ніж (0.06, 0.88, …) — менше «ривка» на старті. */
+export const ROULETTE_SPIN_EASE = "cubic-bezier(0.22, 0.82, 0.12, 1)";
 
 export const rarityBar: Record<string, string> = {
   common: "bg-zinc-500",
-  uncommon: "bg-emerald-500",
+  uncommon: "bg-sky-400",
   rare: "bg-blue-500",
   epic: "bg-fuchsia-500",
   legendary: "bg-amber-400",
@@ -64,7 +70,7 @@ export const rarityBar: Record<string, string> = {
 /** Фон картки рулетки: градієнт кольору якості → темний низ */
 export const rarityCardFill: Record<string, string> = {
   common: "bg-gradient-to-b from-zinc-500/55 via-zinc-700/35 to-zinc-950",
-  uncommon: "bg-gradient-to-b from-emerald-500/55 via-emerald-800/35 to-zinc-950",
+  uncommon: "bg-gradient-to-b from-sky-300/70 via-sky-700/38 to-zinc-950",
   rare: "bg-gradient-to-b from-blue-500/55 via-blue-900/38 to-zinc-950",
   epic: "bg-gradient-to-b from-fuchsia-500/55 via-fuchsia-900/38 to-zinc-950",
   legendary: "bg-gradient-to-b from-amber-400/60 via-amber-800/40 to-zinc-950",
@@ -226,7 +232,7 @@ export function CaseRoulette({
 
       const idleIdx = n * 3 + head;
       const idleTx = vw / 2 - HALF_CARD - TRACK_PAD - idleIdx * CARD_STEP;
-      const finalSlot = SPIN_ROUNDS * n + landOnIndex + head;
+      const finalSlot = ROULETTE_SPIN_ROUNDS * n + landOnIndex + head;
       const endTx = vw / 2 - HALF_CARD - TRACK_PAD - finalSlot * CARD_STEP;
 
       setTransitionMs(0);
@@ -280,7 +286,7 @@ export function CaseRoulette({
   const n = items.length;
   const headSlots = rouletteStripHeadSlots(n);
   const winnerStripIndex =
-    landOnIndex != null && n > 0 ? SPIN_ROUNDS * n + landOnIndex + headSlots : -1;
+    landOnIndex != null && n > 0 ? ROULETTE_SPIN_ROUNDS * n + landOnIndex + headSlots : -1;
 
   return (
     <div className="relative w-full">

@@ -6,6 +6,10 @@ import { StormAtmosphere } from "@/components/StormAtmosphere";
 export const metadata: Metadata = {
   title: "StormBattle",
   description: "Кейсы CS2",
+  icons: {
+    icon: [{ url: "/logo.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/logo.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({

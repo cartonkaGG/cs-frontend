@@ -30,6 +30,11 @@ type Withdrawal = {
   transferId?: string;
   lastError?: string;
   adminNote?: string;
+  resolvedBySub?: string;
+  resolvedBySteamId?: string;
+  resolvedByDisplayName?: string;
+  /** ISO — скасування з профілю гравцем */
+  playerCancelledAt?: string;
 };
 
 type RowInputs = { marketHashName: string; maxPriceRub: string };
@@ -130,6 +135,50 @@ const statusClass: Record<string, string> = {
   failed: "text-red-300",
 };
 
+function withdrawalAuditLines(w: Withdrawal): { key: string; text: string; className: string }[] {
+  const lines: { key: string; text: string; className: string }[] = [];
+  const st = String(w.status || "").toLowerCase();
+  const adminLabel = [w.resolvedByDisplayName?.trim(), w.resolvedBySteamId || w.resolvedBySub]
+    .filter(Boolean)
+    .join(" · ");
+
+  if (st === "completed" && adminLabel) {
+    lines.push({
+      key: "approved",
+      text: `Подтвердил: ${adminLabel}`,
+      className: "text-emerald-200/90",
+    });
+  }
+
+  if (st === "cancelled") {
+    if (w.playerCancelledAt) {
+      lines.push({ key: "c-user", text: "Отменил: игрок", className: "text-zinc-400" });
+    } else if (adminLabel) {
+      lines.push({
+        key: "c-admin",
+        text: `Отменил админ: ${adminLabel}`,
+        className: "text-zinc-400",
+      });
+    } else if (/игроком|игрок/i.test(w.adminNote || "")) {
+      lines.push({
+        key: "c-legacy",
+        text: "Отменил: игрок (старая заявка)",
+        className: "text-zinc-500",
+      });
+    }
+  }
+
+  if (st === "failed" && adminLabel) {
+    lines.push({
+      key: "fail-act",
+      text: `Действие админа: ${adminLabel}`,
+      className: "text-zinc-500",
+    });
+  }
+
+  return lines;
+}
+
 export default function AdminWithdrawalsPage() {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [marketCsgoConfigured, setMarketCsgoConfigured] = useState(false);
@@ -172,12 +221,12 @@ export default function AdminWithdrawalsPage() {
           next[w.id] = { marketHashName: hashFromSnap, maxPriceRub: "" };
           continue;
         }
-        if (w.status === "pending") {
+        if (w.status === "pending" || w.status === "failed") {
           const cur = prevRow.marketHashName.trim();
           if (!cur || cur === nameStr) {
             next[w.id] = {
               ...prevRow,
-              marketHashName: hashFromSnap || cur,
+              marketHashName: hashFromSnap || snap.marketHashName || cur,
             };
           }
         }
@@ -191,6 +240,7 @@ export default function AdminWithdrawalsPage() {
   }, [load]);
 
   const pendingCount = useMemo(() => withdrawals.filter((w) => w.status === "pending").length, [withdrawals]);
+  const failedRetryCount = useMemo(() => withdrawals.filter((w) => w.status === "failed").length, [withdrawals]);
 
   async function approve(w: Withdrawal) {
     const inputs = rowInputs[w.id] || { marketHashName: "", maxPriceRub: "" };
@@ -261,7 +311,11 @@ export default function AdminWithdrawalsPage() {
   }, [inspect, closeInspect]);
 
   async function cancel(w: Withdrawal) {
-    if (!window.confirm("Отменить заявку?")) return;
+    const msg =
+      w.status === "failed"
+        ? "Отменить заявку и вернуть предмет игроку в инвентарь?"
+        : "Отменить заявку?";
+    if (!window.confirm(msg)) return;
     setBusyId(w.id);
     setErr(null);
     const r = await apiFetch(`/api/admin/withdrawals/${w.id}`, {
@@ -290,7 +344,11 @@ export default function AdminWithdrawalsPage() {
             (цена на сайте часто ниже реального ордербука). Нужен баланс на маркете и{" "}
             <span className="font-mono">MARKET_CSGO_API_KEY</span> в .env. Лимит API: не более 5 запросов/с. Если биржа
             пишет о закрытом инвентаре — у игрока в Steam должен быть{" "}
-            <span className="font-semibold text-zinc-300">открытый</span> инвентарь CS (Public).
+            <span className="font-semibold text-zinc-300">открытый</span> инвентарь CS (Public). Если{" "}
+            <span className="font-semibold text-zinc-300">buy-for</span> вернул ошибку, предмет{" "}
+            <span className="font-semibold text-zinc-300">остаётся снятым</span> с инвентаря: используйте{" "}
+            <span className="font-semibold text-emerald-300/90">Повторить отправку</span> или{" "}
+            <span className="font-semibold text-zinc-300">Отменить</span> (тогда предмет вернётся игроку).
           </p>
         </div>
         <button
@@ -310,9 +368,20 @@ export default function AdminWithdrawalsPage() {
         </p>
       ) : null}
 
-      {pendingCount > 0 ? (
+      {pendingCount > 0 || failedRetryCount > 0 ? (
         <p className="text-xs text-zinc-500">
-          В ожидании: <span className="font-mono text-amber-200">{pendingCount}</span>
+          {pendingCount > 0 ? (
+            <>
+              В ожидании: <span className="font-mono text-amber-200">{pendingCount}</span>
+            </>
+          ) : null}
+          {pendingCount > 0 && failedRetryCount > 0 ? " · " : null}
+          {failedRetryCount > 0 ? (
+            <>
+              Ошибка отправки (повтор):{" "}
+              <span className="font-mono text-red-300/90">{failedRetryCount}</span>
+            </>
+          ) : null}
         </p>
       ) : null}
 
@@ -360,6 +429,11 @@ export default function AdminWithdrawalsPage() {
                     {w.lastError ? (
                       <div className="mt-1 max-w-[200px] text-[10px] font-normal text-red-400/90">{w.lastError}</div>
                     ) : null}
+                    {withdrawalAuditLines(w).map((line) => (
+                      <div key={line.key} className={`mt-1 max-w-[240px] text-[10px] font-normal ${line.className}`}>
+                        {line.text}
+                      </div>
+                    ))}
                   </td>
                   <td className="px-3 py-2.5 text-zinc-300">
                     <div className="max-w-[160px] truncate font-medium">{w.displayName || "—"}</div>
@@ -389,7 +463,7 @@ export default function AdminWithdrawalsPage() {
                     </a>
                   </td>
                   <td className="px-3 py-2.5">
-                    {w.status === "pending" ? (
+                    {w.status === "pending" || w.status === "failed" ? (
                       <div className="flex flex-col gap-1">
                         <MarketCsgoHashInput
                           showHint={false}
@@ -421,7 +495,7 @@ export default function AdminWithdrawalsPage() {
                     )}
                   </td>
                   <td className="px-3 py-2.5">
-                    {w.status === "pending" ? (
+                    {w.status === "pending" || w.status === "failed" ? (
                       <div className="flex flex-col gap-1.5">
                         <button
                           type="button"
@@ -429,7 +503,7 @@ export default function AdminWithdrawalsPage() {
                           onClick={() => void approve(w)}
                           className="rounded-lg border border-emerald-600/50 bg-emerald-950/30 px-2 py-1.5 text-[11px] font-bold text-emerald-200 transition hover:bg-emerald-900/40 disabled:opacity-40"
                         >
-                          {busy ? "…" : "Подтвердить"}
+                          {busy ? "…" : w.status === "failed" ? "Повторить отправку" : "Подтвердить"}
                         </button>
                         <button
                           type="button"

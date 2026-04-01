@@ -127,7 +127,7 @@ type AdminUsersSummary = {
 
 const rarityClass: Record<string, string> = {
   common: "border-zinc-600/80 bg-zinc-950/50 text-zinc-300",
-  uncommon: "border-emerald-600/50 bg-emerald-950/20 text-emerald-300",
+  uncommon: "border-sky-400/50 bg-sky-950/25 text-sky-200",
   rare: "border-blue-600/50 bg-blue-950/25 text-blue-300",
   epic: "border-purple-600/50 bg-purple-950/25 text-purple-300",
   legendary: "border-orange-500/50 bg-red-950/30 text-orange-300",

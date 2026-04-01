@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { normRarity, rarityBar } from "@/components/CaseRoulette";
+import { FreeKassaBanner } from "@/components/FreeKassaBanner";
 import { SiteShell } from "@/components/SiteShell";
 import { apiFetch, clearToken, getToken } from "@/lib/api";
 import { requestAuthModal } from "@/lib/authModal";
@@ -65,9 +66,15 @@ type BestDrop = {
   source?: "case" | "upgrade" | "inventory";
 };
 
+type MyWithdrawalRow = {
+  id: string;
+  status: string;
+  itemSnapshot?: { itemId?: string };
+};
+
 const rarityClass: Record<string, string> = {
   common: "border-zinc-600/80 bg-zinc-950/50 text-zinc-300",
-  uncommon: "border-emerald-600/50 bg-emerald-950/20 text-emerald-300",
+  uncommon: "border-sky-400/50 bg-sky-950/25 text-sky-200",
   rare: "border-blue-600/50 bg-blue-950/25 text-blue-300",
   epic: "border-purple-600/50 bg-purple-950/25 text-purple-300",
   legendary: "border-orange-500/50 bg-red-950/30 text-orange-300",
@@ -121,35 +128,58 @@ export default function ProfilePage() {
   const [withdrawTradeUrl, setWithdrawTradeUrl] = useState("");
   const [withdrawBusy, setWithdrawBusy] = useState(false);
   const [withdrawErr, setWithdrawErr] = useState<string | null>(null);
+  const [myWithdrawals, setMyWithdrawals] = useState<MyWithdrawalRow[]>([]);
+  const [cancelWithdrawBusyId, setCancelWithdrawBusyId] = useState<string | null>(null);
+
+  /** Активні заявки з /api/withdrawals/mine — єдине джерело для «На выводе» / «Отменить», щоб не розходилось з /api/me. */
+  const activeWithdrawalByItemId = useMemo(() => {
+    const ACTIVE = new Set(["pending", "processing", "failed"]);
+    const m = new Map<string, { status: string; id: string }>();
+    for (const w of myWithdrawals) {
+      const st = String(w.status || "").trim().toLowerCase();
+      if (!ACTIVE.has(st)) continue;
+      const iid = String(w.itemSnapshot?.itemId ?? "").trim();
+      if (iid) m.set(iid, { status: st, id: w.id });
+    }
+    return m;
+  }, [myWithdrawals]);
 
   const inventorySellTotal = useMemo(
     () =>
       (me?.inventory ?? []).reduce((s, it) => {
-        if (it.withdrawalPending) return s;
+        if (activeWithdrawalByItemId.has(String(it.itemId ?? "").trim())) return s;
         return s + displayItemRub(it);
       }, 0),
-    [me?.inventory],
+    [me?.inventory, activeWithdrawalByItemId],
   );
 
   const sellableInventoryCount = useMemo(
-    () => (me?.inventory ?? []).filter((it) => !it.withdrawalPending).length,
-    [me?.inventory],
+    () =>
+      (me?.inventory ?? []).filter((it) => !activeWithdrawalByItemId.has(String(it.itemId ?? "").trim()))
+        .length,
+    [me?.inventory, activeWithdrawalByItemId],
   );
 
   const load = useCallback(async () => {
     if (!getToken()) {
       setMe(null);
       setErr(null);
+      setMyWithdrawals([]);
       return;
     }
-    const r = await apiFetch<Me>("/api/me");
-    if (!r.ok) {
-      setErr(r.error || "Ошибка");
+    const [rMe, rWd] = await Promise.all([
+      apiFetch<Me>("/api/me"),
+      apiFetch<{ withdrawals: MyWithdrawalRow[] }>("/api/withdrawals/mine"),
+    ]);
+    if (!rMe.ok) {
+      setErr(rMe.error || "Ошибка");
       setMe(null);
+      setMyWithdrawals([]);
       return;
     }
     setErr(null);
-    setMe(r.data!);
+    setMe(rMe.data!);
+    setMyWithdrawals(Array.isArray(rWd.data?.withdrawals) ? rWd.data!.withdrawals : []);
   }, []);
 
   useEffect(() => {
@@ -339,6 +369,28 @@ export default function ProfilePage() {
     alert("Заявка на вывод создана. Админ подтвердит покупку на Market.csgo и отправку на ваш trade URL.");
   }
 
+  async function cancelMyWithdraw(withdrawalId: string) {
+    if (!getToken() || cancelWithdrawBusyId) return;
+    if (
+      !window.confirm(
+        "Отменить заявку на вывод? Предмет снова можно продать или подать заявку заново.",
+      )
+    ) {
+      return;
+    }
+    setCancelWithdrawBusyId(withdrawalId);
+    const r = await apiFetch(`/api/withdrawals/${encodeURIComponent(withdrawalId)}/cancel`, {
+      method: "POST",
+    });
+    setCancelWithdrawBusyId(null);
+    if (!r.ok) {
+      alert(r.error || "Не удалось отменить");
+      return;
+    }
+    await load();
+    window.dispatchEvent(new CustomEvent("cd-balance-updated"));
+  }
+
   return (
     <SiteShell>
       <div className="relative mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
@@ -513,6 +565,9 @@ export default function ProfilePage() {
                           >
                             + Пополнить
                           </button>
+                        </div>
+                        <div className="mt-4 flex justify-center border-t border-cb-stroke/35 pt-4">
+                          <FreeKassaBanner imgClassName="max-h-16 sm:max-h-20" />
                         </div>
                       </div>
 
@@ -695,7 +750,10 @@ export default function ProfilePage() {
                           const bar = rarityBar[rk] || rarityBar.common;
                           const { weapon, skin } = splitItemName(it.name);
                           const marketUrl = `https://steamcommunity.com/market/search?q=${encodeURIComponent(it.name)}`;
-                          const locked = Boolean(it.withdrawalPending);
+                          const itemKey = String(it.itemId ?? "").trim();
+                          const wdAct = activeWithdrawalByItemId.get(itemKey);
+                          const locked = Boolean(wdAct);
+                          const pendingWdId = wdAct?.status === "pending" ? wdAct.id : null;
                           const showRub = displayItemRub(it);
                           return (
                             <li
@@ -717,9 +775,21 @@ export default function ProfilePage() {
                                   {formatRub(showRub)} ₽
                                 </p>
                                 {locked ? (
-                                  <p className="mt-0.5 truncate pl-7 text-right text-[9px] font-semibold uppercase tracking-wide text-amber-400/90">
-                                    На выводе
-                                  </p>
+                                  <div className="mt-0.5 space-y-1 pl-7 text-right">
+                                    <p className="truncate text-[9px] font-semibold uppercase tracking-wide text-amber-400/90">
+                                      На выводе
+                                    </p>
+                                    {pendingWdId ? (
+                                      <button
+                                        type="button"
+                                        disabled={cancelWithdrawBusyId === pendingWdId}
+                                        onClick={() => void cancelMyWithdraw(pendingWdId)}
+                                        className="truncate text-[9px] font-bold text-sky-400 underline decoration-sky-500/50 underline-offset-2 transition hover:text-sky-300 disabled:opacity-50"
+                                      >
+                                        {cancelWithdrawBusyId === pendingWdId ? "…" : "Отменить вывод"}
+                                      </button>
+                                    ) : null}
+                                  </div>
                                 ) : null}
                                 <div className="relative mx-auto mt-1 aspect-square w-[88%] max-w-[9.5rem]">
                                   {it.image ? (
