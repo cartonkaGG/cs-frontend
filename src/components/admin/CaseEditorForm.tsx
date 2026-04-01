@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ACCENT_KEYS,
@@ -11,6 +11,7 @@ import {
   RARITY_OPTIONS,
 } from "@/lib/caseConfig";
 import { apiFetch, type ApiFieldErrors } from "@/lib/api";
+import { formatRub } from "@/lib/money";
 
 function formatZodDetails(d?: ApiFieldErrors): string | null {
   if (!d) return null;
@@ -29,6 +30,7 @@ const emptyLoot = (): LootRow => ({
   sellPrice: 0,
   weight: 10,
   image: "",
+  dmarketTitle: "",
 });
 
 type Props = { mode: "new" | "edit"; initial?: AdminCaseFull | null };
@@ -60,6 +62,44 @@ export function CaseEditorForm({ mode, initial }: Props) {
   );
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  /** Індекс рядка → ціна market.csgo (₽) або null */
+  const [rowMarketRub, setRowMarketRub] = useState<Record<number, number | null>>({});
+  const [rowQuoteLoading, setRowQuoteLoading] = useState(false);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    const t = window.setTimeout(() => {
+      void (async () => {
+        setRowQuoteLoading(true);
+        const next: Record<number, number | null> = {};
+        for (let i = 0; i < items.length; i++) {
+          if (ac.signal.aborted) return;
+          const q = (items[i].dmarketTitle || items[i].name || "").trim();
+          if (!q) {
+            next[i] = null;
+            continue;
+          }
+          const r = await apiFetch<{ quote: { priceRub: number } | null }>(
+            `/api/admin/market-quote?title=${encodeURIComponent(q)}`,
+            { signal: ac.signal },
+          );
+          if (ac.signal.aborted) return;
+          next[i] =
+            r.ok && r.data?.quote != null && typeof r.data.quote.priceRub === "number"
+              ? r.data.quote.priceRub
+              : null;
+        }
+        if (!ac.signal.aborted) {
+          setRowMarketRub(next);
+          setRowQuoteLoading(false);
+        }
+      })();
+    }, 450);
+    return () => {
+      ac.abort();
+      window.clearTimeout(t);
+    };
+  }, [items]);
 
   const payload = useCallback(() => {
     const p = Number(price);
@@ -69,6 +109,7 @@ export function CaseEditorForm({ mode, initial }: Props) {
       sellPrice: Number(it.sellPrice) || 0,
       weight: Math.max(1, Math.floor(Number(it.weight)) || 1),
       image: (it.image || "").trim(),
+      dmarketTitle: (it.dmarketTitle || "").trim().slice(0, 300),
     }));
     const cCase = Math.min(180, Math.max(40, Math.round(Number(cardCaseImageScale) || 100)));
     const cSkin = Math.min(180, Math.max(40, Math.round(Number(cardSkinImageScale) || 100)));
@@ -402,6 +443,17 @@ export function CaseEditorForm({ mode, initial }: Props) {
                   className="w-full rounded border border-cb-stroke bg-black/30 px-2 py-1.5 text-sm text-white"
                 />
               </label>
+              <label className="block space-y-1 sm:col-span-2 lg:col-span-6">
+                <span className="text-[10px] uppercase text-zinc-500">
+                  Market.csgo hash (опц., як у прайсі)
+                </span>
+                <input
+                  value={row.dmarketTitle || ""}
+                  onChange={(e) => updateItem(i, { dmarketTitle: e.target.value })}
+                  placeholder="AK-47 | Redline (Field-Tested)"
+                  className="w-full rounded border border-cb-stroke bg-black/30 px-2 py-1.5 font-mono text-xs text-white placeholder:text-zinc-600"
+                />
+              </label>
               <label className="block space-y-1">
                 <span className="text-[10px] uppercase text-zinc-500">Редкость</span>
                 <select
@@ -455,6 +507,20 @@ export function CaseEditorForm({ mode, initial }: Props) {
                   </button>
                 </div>
               </label>
+              <div className="flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-6 border-t border-cb-stroke/50 pt-3">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                  Ринок (market.csgo)
+                </span>
+                <span className="font-mono text-sm font-semibold tabular-nums text-emerald-300/95">
+                  {(() => {
+                    const q = (row.dmarketTitle || row.name || "").trim();
+                    if (!q) return "—";
+                    const rub = rowMarketRub[i];
+                    if (rowQuoteLoading && rub === undefined) return "…";
+                    return rub != null ? `${formatRub(rub)} ₽` : "—";
+                  })()}
+                </span>
+              </div>
             </div>
           ))}
         </div>

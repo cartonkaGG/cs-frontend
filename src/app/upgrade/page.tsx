@@ -15,6 +15,8 @@ type InvItem = {
   image?: string;
   rarity?: string;
   sellPrice: number;
+  marketPriceRub?: number | null;
+  withdrawalPending?: boolean;
   caseSlug?: string;
 };
 
@@ -427,6 +429,17 @@ export default function UpgradePage() {
     void loadAll();
   }, [loadAll]);
 
+  useEffect(() => {
+    setSelected((prev) => {
+      const next = new Set<string>();
+      for (const id of prev) {
+        const row = inventory.find((x) => x.itemId === id);
+        if (row && !row.withdrawalPending) next.add(id);
+      }
+      return next;
+    });
+  }, [inventory]);
+
   const inputSum = useMemo(() => {
     let s = 0;
     selected.forEach((id) => {
@@ -573,6 +586,8 @@ export default function UpgradePage() {
 
   function toggleSel(id: string) {
     if (spinning) return;
+    const row = inventory.find((x) => x.itemId === id);
+    if (row?.withdrawalPending) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -924,11 +939,17 @@ export default function UpgradePage() {
                   <div className="grid grid-cols-4 gap-1.5">
                     {inventory.map((it) => {
                       const on = selected.has(it.itemId);
+                      const locked = Boolean(it.withdrawalPending);
+                      const chipRub =
+                        it.marketPriceRub != null && it.marketPriceRub > 0
+                          ? it.marketPriceRub
+                          : it.sellPrice;
                       return (
                         <button
                           key={it.itemId}
                           type="button"
-                          disabled={spinning}
+                          title={locked ? "Предмет на виводі" : undefined}
+                          disabled={spinning || locked}
                           onClick={() => toggleSel(it.itemId)}
                           className={`relative overflow-hidden rounded-lg border p-1 text-left transition ${rarityCardSurface(it.rarity || "common")} ${
                             on
@@ -947,8 +968,13 @@ export default function UpgradePage() {
                             {it.name}
                           </p>
                           <span className={UPGRADE_PRICE_CHIP}>
-                            {formatRub(it.sellPrice)} ₽
+                            {formatRub(chipRub)} ₽
                           </span>
+                          {locked ? (
+                            <span className="mt-0.5 block text-center text-[7px] font-bold uppercase text-amber-500/90">
+                              вивід
+                            </span>
+                          ) : null}
                         </button>
                       );
                     })}
@@ -958,11 +984,17 @@ export default function UpgradePage() {
                 <div className="max-h-[min(42vh,440px)] space-y-1 overflow-y-auto overflow-x-hidden pr-1 sm:max-h-[480px]">
                   {inventory.map((it) => {
                     const on = selected.has(it.itemId);
+                    const locked = Boolean(it.withdrawalPending);
+                    const chipRub =
+                      it.marketPriceRub != null && it.marketPriceRub > 0
+                        ? it.marketPriceRub
+                        : it.sellPrice;
                     return (
                       <button
                         key={it.itemId}
                         type="button"
-                        disabled={spinning}
+                        title={locked ? "Предмет на виводі" : undefined}
+                        disabled={spinning || locked}
                         onClick={() => toggleSel(it.itemId)}
                         className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${rarityCardSurface(it.rarity || "common")} ${
                           on ? "ring-2 ring-cb-flame/55 shadow-[0_0_12px_rgba(255,49,49,0.2)]" : "hover:brightness-105"
@@ -976,8 +1008,13 @@ export default function UpgradePage() {
                         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                           <p className="truncate text-[11px] text-zinc-100">{it.name}</p>
                           <span className={UPGRADE_PRICE_CHIP_INLINE}>
-                            {formatRub(it.sellPrice)} ₽
+                            {formatRub(chipRub)} ₽
                           </span>
+                          {locked ? (
+                            <span className="text-[8px] font-bold uppercase text-amber-500/90">
+                              на виводі
+                            </span>
+                          ) : null}
                         </div>
                       </button>
                     );

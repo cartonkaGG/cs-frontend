@@ -13,6 +13,8 @@ export type RouletteItem = {
   rarity: string;
   sellPrice: number;
   image: string;
+  /** Якість / wear (з market.csgo hash), напр. field tested */
+  exterior?: string;
 };
 
 const CARD_STEP = 136;
@@ -115,9 +117,16 @@ const RouletteCard = memo(function RouletteCard({
             <div className="flex h-full items-center justify-center text-2xl text-zinc-300/80">?</div>
           )}
         </div>
-        <p className="mt-1 line-clamp-2 text-center text-[10px] font-semibold leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
-          {item.name}
-        </p>
+        <div className="mt-1 min-h-0 text-center">
+          <p className="line-clamp-2 text-[10px] font-semibold leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
+            {item.name}
+          </p>
+          {item.exterior ? (
+            <p className="mt-0.5 line-clamp-1 text-[8px] font-medium capitalize leading-tight text-zinc-400">
+              {item.exterior}
+            </p>
+          ) : null}
+        </div>
       </div>
       <div className={`absolute bottom-0 left-0 right-0 z-[2] h-1.5 ${bar}`} />
     </div>

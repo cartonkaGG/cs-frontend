@@ -978,6 +978,11 @@ export default function CaseOpenPage() {
                         <p className="line-clamp-2 text-center text-[11px] font-medium leading-tight text-zinc-200">
                           {it.name}
                         </p>
+                        {it.exterior ? (
+                          <p className="mt-0.5 line-clamp-1 text-center text-[9px] capitalize text-zinc-500">
+                            {it.exterior}
+                          </p>
+                        ) : null}
                       </div>
                       <div className={`h-1 w-full ${bar}`} />
                     </div>

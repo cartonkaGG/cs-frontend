@@ -34,6 +34,8 @@ export type LootRow = {
   sellPrice: number;
   weight: number;
   image: string;
+  /** Якщо задано — для цін з market.csgo.com (точний market_hash_name з їхнього JSON) */
+  dmarketTitle?: string;
 };
 
 export type AdminCaseFull = {

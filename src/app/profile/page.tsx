@@ -38,7 +38,15 @@ type Me = {
     image: string;
     rarity: string;
     sellPrice: number;
+    marketPriceRub?: number | null;
+    priceSource?: string;
+    withdrawalPending?: boolean;
     caseSlug?: string;
+    dmarketAssetId?: string;
+    dmarketClassId?: string;
+    dmarketGameId?: string;
+    dmarketTitle?: string;
+    exterior?: string;
   }[];
   bestEverItem?: {
     name: string;
@@ -77,6 +85,12 @@ const rarityClass: Record<string, string> = {
 const profileCard =
   "rounded-2xl border border-cb-stroke/60 bg-gradient-to-br from-[#0a0e14]/95 via-cb-panel/40 to-black/80 shadow-[inset_0_1px_0_rgba(255,49,49,0.07),0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-sm";
 
+function displayItemRub(it: Me["inventory"][number]): number {
+  const m = Number(it.marketPriceRub);
+  if (Number.isFinite(m) && m > 0) return m;
+  return Number(it.sellPrice) || 0;
+}
+
 function ProfileHexBg() {
   return (
     <div
@@ -103,9 +117,22 @@ export default function ProfilePage() {
   const [depositNotice, setDepositNotice] = useState<string | null>(null);
   const [tradeUrl, setTradeUrl] = useState("");
   const [tradeSavedFlash, setTradeSavedFlash] = useState(false);
+  const [withdrawItem, setWithdrawItem] = useState<Me["inventory"][number] | null>(null);
+  const [withdrawTradeUrl, setWithdrawTradeUrl] = useState("");
+  const [withdrawBusy, setWithdrawBusy] = useState(false);
+  const [withdrawErr, setWithdrawErr] = useState<string | null>(null);
 
   const inventorySellTotal = useMemo(
-    () => (me?.inventory ?? []).reduce((s, it) => s + (Number(it.sellPrice) || 0), 0),
+    () =>
+      (me?.inventory ?? []).reduce((s, it) => {
+        if (it.withdrawalPending) return s;
+        return s + displayItemRub(it);
+      }, 0),
+    [me?.inventory],
+  );
+
+  const sellableInventoryCount = useMemo(
+    () => (me?.inventory ?? []).filter((it) => !it.withdrawalPending).length,
     [me?.inventory],
   );
 
@@ -169,13 +196,14 @@ export default function ProfilePage() {
         }
       : me.inventory.reduce<BestDrop | null>(
           (acc, it) => {
+            const p = displayItemRub(it);
             const current = acc?.sellPrice ?? -Infinity;
-            return it.sellPrice > current
+            return p > current
               ? {
                   name: it.name,
                   image: it.image ?? null,
                   rarity: it.rarity,
-                  sellPrice: it.sellPrice,
+                  sellPrice: p,
                   source: "inventory",
                 }
               : acc;
@@ -276,6 +304,39 @@ export default function ProfilePage() {
 
   function openTopUp() {
     window.dispatchEvent(new CustomEvent("cd-open-crypto-topup"));
+  }
+
+  async function submitWithdraw() {
+    if (!withdrawItem || withdrawBusy) return;
+    if (!getToken()) {
+      requestAuthModal("/profile");
+      return;
+    }
+    const u = withdrawTradeUrl.trim();
+    const low = u.toLowerCase();
+    if (
+      u.length < 40 ||
+      !low.includes("steamcommunity.com") ||
+      (!low.includes("tradeoffer/new") && (!low.includes("partner=") || !low.includes("token=")))
+    ) {
+      setWithdrawErr("Вкажіть повну Steam trade-посилання (partner і token)");
+      return;
+    }
+    setWithdrawBusy(true);
+    setWithdrawErr(null);
+    const r = await apiFetch<{ withdrawal?: { id: string } }>("/api/withdrawals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId: withdrawItem.itemId, tradeUrl: u }),
+    });
+    setWithdrawBusy(false);
+    if (!r.ok) {
+      setWithdrawErr(r.error || "Помилка");
+      return;
+    }
+    setWithdrawItem(null);
+    await load();
+    alert("Заявку на вивід створено. Адмін підтвердить покупку на Market.csgo і відправку на ваш trade URL.");
   }
 
   return (
@@ -608,7 +669,7 @@ export default function ProfilePage() {
                       </span>
                       <button
                         type="button"
-                        disabled={!me.inventory.length || sellAllBusy}
+                        disabled={!sellableInventoryCount || sellAllBusy}
                         onClick={() => {
                           void sellAll();
                         }}
@@ -619,9 +680,11 @@ export default function ProfilePage() {
                         </span>
                         {me.inventory.length === 0
                           ? "Нет предметов для продажи"
-                          : sellAllBusy
-                            ? "Продаём…"
-                            : `Продать всё за ${formatRub(inventorySellTotal)} ₽`}
+                          : !sellableInventoryCount
+                            ? "Все предметы на выводе"
+                            : sellAllBusy
+                              ? "Продаём…"
+                              : `Продать всё за ${formatRub(inventorySellTotal)} ₽`}
                       </button>
                     </div>
 
@@ -632,18 +695,32 @@ export default function ProfilePage() {
                           const bar = rarityBar[rk] || rarityBar.common;
                           const { weapon, skin } = splitItemName(it.name);
                           const marketUrl = `https://steamcommunity.com/market/search?q=${encodeURIComponent(it.name)}`;
+                          const locked = Boolean(it.withdrawalPending);
+                          const showRub = displayItemRub(it);
                           return (
                             <li
                               key={it.itemId}
-                              className="group flex flex-col overflow-hidden rounded-xl border border-cb-stroke/70 bg-gradient-to-br from-[#06060c] via-[#08050a] to-black shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
+                              className={`group flex flex-col overflow-hidden rounded-xl border border-cb-stroke/70 bg-gradient-to-br from-[#06060c] via-[#08050a] to-black shadow-[0_12px_40px_rgba(0,0,0,0.35)] ${locked ? "opacity-90 ring-1 ring-amber-600/35" : ""}`}
                             >
                               <div className="relative px-2 pb-0 pt-2">
                                 <div className="absolute left-2 top-2 z-10 text-[15px] leading-none opacity-90">
                                   📦
                                 </div>
-                                <p className="truncate pl-7 text-right font-mono text-[11px] font-bold tabular-nums text-cb-flame sm:text-xs">
-                                  {formatRub(it.sellPrice)} ₽
+                                <p
+                                  className="truncate pl-7 text-right font-mono text-[11px] font-bold tabular-nums text-cb-flame sm:text-xs"
+                                  title={
+                                    it.marketPriceRub != null && it.marketPriceRub > 0
+                                      ? "Орієнтир market.csgo; продаж за ціною сайту — інша сума"
+                                      : undefined
+                                  }
+                                >
+                                  {formatRub(showRub)} ₽
                                 </p>
+                                {locked ? (
+                                  <p className="mt-0.5 truncate pl-7 text-right text-[9px] font-semibold uppercase tracking-wide text-amber-400/90">
+                                    На виводі
+                                  </p>
+                                ) : null}
                                 <div className="relative mx-auto mt-1 aspect-square w-[88%] max-w-[9.5rem]">
                                   {it.image ? (
                                     <Image
@@ -671,41 +748,76 @@ export default function ProfilePage() {
                                     {skin}
                                   </p>
                                 ) : null}
+                                {it.exterior ? (
+                                  <p className="mt-0.5 line-clamp-1 text-[9px] capitalize text-zinc-500">
+                                    {it.exterior}
+                                  </p>
+                                ) : null}
                               </div>
                               <div className="mt-auto flex items-center justify-center gap-0.5 border-t border-cb-stroke/50 bg-black/45 px-1 py-2 sm:gap-1">
                                 <button
                                   type="button"
-                                  title="Скоро"
-                                  disabled
-                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/30 text-zinc-600 opacity-50"
+                                  title={
+                                    locked
+                                      ? "Предмет на виводі"
+                                      : "Вивід через Market.csgo"
+                                  }
+                                  disabled={locked}
+                                  onClick={() => {
+                                    if (locked) return;
+                                    setWithdrawErr(null);
+                                    setWithdrawTradeUrl(tradeUrl.trim());
+                                    setWithdrawItem(it);
+                                  }}
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/30 text-zinc-400 transition hover:border-cb-flame/45 hover:text-cb-flame disabled:cursor-not-allowed disabled:opacity-35"
                                 >
                                   <span className="text-[13px]" aria-hidden>
                                     📋
                                   </span>
                                 </button>
-                                <Link
-                                  href="/upgrade"
-                                  title="Апгрейд"
-                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/30 text-zinc-400 transition hover:border-cb-flame/45 hover:text-cb-flame"
-                                >
-                                  <svg
-                                    className="h-3.5 w-3.5"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth={2}
-                                    aria-hidden
+                                {locked ? (
+                                  <span
+                                    title="Предмет на виводі"
+                                    className="flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/20 text-zinc-600 opacity-50"
                                   >
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 11l5-5 5 5M7 17l5-5 5 5" />
-                                  </svg>
-                                </Link>
+                                    <svg
+                                      className="h-3.5 w-3.5"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      aria-hidden
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 11l5-5 5 5M7 17l5-5 5 5" />
+                                    </svg>
+                                  </span>
+                                ) : (
+                                  <Link
+                                    href="/upgrade"
+                                    title="Апгрейд"
+                                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/30 text-zinc-400 transition hover:border-cb-flame/45 hover:text-cb-flame"
+                                  >
+                                    <svg
+                                      className="h-3.5 w-3.5"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      aria-hidden
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 11l5-5 5 5M7 17l5-5 5 5" />
+                                    </svg>
+                                  </Link>
+                                )}
                                 <button
                                   type="button"
-                                  title="Продать"
+                                  title={locked ? "Предмет на виводі" : "Продать"}
+                                  disabled={locked}
                                   onClick={() => {
+                                    if (locked) return;
                                     void sell(it.itemId);
                                   }}
-                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/30 text-zinc-400 transition hover:border-cb-flame/45 hover:text-cb-flame"
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/30 text-zinc-400 transition hover:border-cb-flame/45 hover:text-cb-flame disabled:cursor-not-allowed disabled:opacity-35"
                                 >
                                   <span className="text-[13px]" aria-hidden>
                                     💰
@@ -759,6 +871,65 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {withdrawItem ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Закрити"
+            disabled={withdrawBusy}
+            className="absolute inset-0 bg-black/75 backdrop-blur-sm disabled:cursor-wait"
+            onClick={() => {
+              if (!withdrawBusy) setWithdrawItem(null);
+            }}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-cb-stroke/80 bg-[#0a0e14] p-5 shadow-2xl shadow-black/60 sm:p-6">
+            <h3 className="text-sm font-black uppercase tracking-wide text-white">Вивід предмета</h3>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+              Заявка потрапить до адміна. Після підтвердження з вашого акаунта market.csgo виконується покупка лоту
+              (buy-for) і обмін на вказаний trade URL. Переконайтеся, що посилання актуальне і на маркеті достатньо
+              коштів.
+            </p>
+            <p className="mt-2 rounded-lg border border-amber-600/35 bg-amber-950/25 px-3 py-2 text-[11px] leading-snug text-amber-200/95">
+              У Steam відкрийте інвентар для всіх:{" "}
+              <span className="font-semibold text-amber-100">Профіль → Редагувати профіль → Конфіденційність</span> — пункт
+              про інвентар має бути <span className="font-semibold">«Відкритий»</span> (Public). Інакше біржа не відправить
+              обмін.
+            </p>
+            <p className="mt-3 line-clamp-2 text-sm font-semibold text-zinc-200">{withdrawItem.name}</p>
+            <label className="mt-4 block text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+              Steam trade URL
+            </label>
+            <input
+              value={withdrawTradeUrl}
+              onChange={(e) => setWithdrawTradeUrl(e.target.value)}
+              placeholder="https://steamcommunity.com/tradeoffer/new/?partner=…&token=…"
+              className="mt-1.5 w-full rounded-xl border border-cb-stroke/70 bg-black/50 px-3 py-2.5 font-mono text-[11px] text-zinc-200 placeholder:text-zinc-600 focus:border-cb-flame/50 focus:outline-none focus:ring-1 focus:ring-cb-flame/30"
+            />
+            {withdrawErr ? (
+              <p className="mt-3 text-xs text-red-400">{withdrawErr}</p>
+            ) : null}
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={withdrawBusy}
+                onClick={() => setWithdrawItem(null)}
+                className="rounded-xl border border-cb-stroke bg-black/40 px-4 py-2 text-xs font-semibold text-zinc-400 transition hover:text-white disabled:opacity-50"
+              >
+                Скасувати
+              </button>
+              <button
+                type="button"
+                disabled={withdrawBusy}
+                onClick={() => void submitWithdraw()}
+                className="rounded-xl border-2 border-cb-flame/60 bg-cb-flame/10 px-4 py-2 text-xs font-black uppercase tracking-wider text-white transition hover:bg-cb-flame/20 disabled:opacity-50"
+              >
+                {withdrawBusy ? "Відправка…" : "Подати заявку"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </SiteShell>
   );
 }
