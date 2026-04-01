@@ -29,7 +29,7 @@ export function MarketCsgoHashInput({
   const [loading, setLoading] = useState(false);
   const [hits, setHits] = useState<MarketSearchHit[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const debounceRef = useRef<number | undefined>(undefined);
   const reqIdRef = useRef(0);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export function MarketCsgoHashInput({
 
   const fetchHits = useCallback(
     (q: string) => {
-      window.clearTimeout(debounceRef.current);
+      if (debounceRef.current !== undefined) window.clearTimeout(debounceRef.current);
       const trimmed = q.trim();
       if (trimmed.length < minQueryLength) {
         setHits([]);
@@ -66,7 +66,9 @@ export function MarketCsgoHashInput({
   );
 
   useEffect(() => {
-    return () => window.clearTimeout(debounceRef.current);
+    return () => {
+      if (debounceRef.current !== undefined) window.clearTimeout(debounceRef.current);
+    };
   }, []);
 
   return (
@@ -102,7 +104,11 @@ export function MarketCsgoHashInput({
             <li className="px-3 py-2 text-xs text-zinc-500">Ничего не найдено</li>
           ) : null}
           {hits.map((h) => (
-            <li key={h.marketHashName} role="option">
+            <li
+              key={h.marketHashName}
+              role="option"
+              aria-selected={value.trim() === h.marketHashName}
+            >
               <button
                 type="button"
                 className="flex w-full items-start gap-2 px-3 py-2 text-left text-xs transition hover:bg-white/5"
