@@ -12,6 +12,7 @@ import {
 } from "@/lib/caseConfig";
 import { apiFetch, type ApiFieldErrors } from "@/lib/api";
 import { formatRub } from "@/lib/money";
+import { MarketCsgoHashInput } from "@/components/admin/MarketCsgoHashInput";
 
 function formatZodDetails(d?: ApiFieldErrors): string | null {
   if (!d) return null;
@@ -153,7 +154,7 @@ export function CaseEditorForm({ mode, initial }: Props) {
     const namedItems = body.items.filter((it) => it.name.length > 0);
     if (namedItems.length === 0) {
       setSaving(false);
-      setErr("Додайте хоча б один предмет у списку з непорожньою назвою.");
+      setErr("Добавьте хотя бы один предмет в списке с непустым названием.");
       return;
     }
     const saveBody = { ...body, items: namedItems };
@@ -445,13 +446,12 @@ export function CaseEditorForm({ mode, initial }: Props) {
               </label>
               <label className="block space-y-1 sm:col-span-2 lg:col-span-6">
                 <span className="text-[10px] uppercase text-zinc-500">
-                  Market.csgo hash (опц., як у прайсі)
+                  Market.csgo hash (опц., поиск по прайсу)
                 </span>
-                <input
+                <MarketCsgoHashInput
                   value={row.dmarketTitle || ""}
-                  onChange={(e) => updateItem(i, { dmarketTitle: e.target.value })}
-                  placeholder="AK-47 | Redline (Field-Tested)"
-                  className="w-full rounded border border-cb-stroke bg-black/30 px-2 py-1.5 font-mono text-xs text-white placeholder:text-zinc-600"
+                  onChange={(v) => updateItem(i, { dmarketTitle: v })}
+                  inputClassName="w-full rounded border border-cb-stroke bg-black/30 px-2 py-1.5 font-mono text-xs text-white placeholder:text-zinc-600"
                 />
               </label>
               <label className="block space-y-1">

@@ -319,7 +319,7 @@ export default function ProfilePage() {
       !low.includes("steamcommunity.com") ||
       (!low.includes("tradeoffer/new") && (!low.includes("partner=") || !low.includes("token=")))
     ) {
-      setWithdrawErr("Вкажіть повну Steam trade-посилання (partner і token)");
+      setWithdrawErr("Укажите полную Steam trade-ссылку (partner и token)");
       return;
     }
     setWithdrawBusy(true);
@@ -331,12 +331,12 @@ export default function ProfilePage() {
     });
     setWithdrawBusy(false);
     if (!r.ok) {
-      setWithdrawErr(r.error || "Помилка");
+      setWithdrawErr(r.error || "Ошибка");
       return;
     }
     setWithdrawItem(null);
     await load();
-    alert("Заявку на вивід створено. Адмін підтвердить покупку на Market.csgo і відправку на ваш trade URL.");
+    alert("Заявка на вывод создана. Админ подтвердит покупку на Market.csgo и отправку на ваш trade URL.");
   }
 
   return (
@@ -710,7 +710,7 @@ export default function ProfilePage() {
                                   className="truncate pl-7 text-right font-mono text-[11px] font-bold tabular-nums text-cb-flame sm:text-xs"
                                   title={
                                     it.marketPriceRub != null && it.marketPriceRub > 0
-                                      ? "Орієнтир market.csgo; продаж за ціною сайту — інша сума"
+                                      ? "Ориентир market.csgo; продажа по цене сайта — другая сумма"
                                       : undefined
                                   }
                                 >
@@ -718,7 +718,7 @@ export default function ProfilePage() {
                                 </p>
                                 {locked ? (
                                   <p className="mt-0.5 truncate pl-7 text-right text-[9px] font-semibold uppercase tracking-wide text-amber-400/90">
-                                    На виводі
+                                    На выводе
                                   </p>
                                 ) : null}
                                 <div className="relative mx-auto mt-1 aspect-square w-[88%] max-w-[9.5rem]">
@@ -759,8 +759,8 @@ export default function ProfilePage() {
                                   type="button"
                                   title={
                                     locked
-                                      ? "Предмет на виводі"
-                                      : "Вивід через Market.csgo"
+                                      ? "Предмет на выводе"
+                                      : "Вывод через Market.csgo"
                                   }
                                   disabled={locked}
                                   onClick={() => {
@@ -777,7 +777,7 @@ export default function ProfilePage() {
                                 </button>
                                 {locked ? (
                                   <span
-                                    title="Предмет на виводі"
+                                    title="Предмет на выводе"
                                     className="flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/20 text-zinc-600 opacity-50"
                                   >
                                     <svg
@@ -811,7 +811,7 @@ export default function ProfilePage() {
                                 )}
                                 <button
                                   type="button"
-                                  title={locked ? "Предмет на виводі" : "Продать"}
+                                  title={locked ? "Предмет на выводе" : "Продать"}
                                   disabled={locked}
                                   onClick={() => {
                                     if (locked) return;
@@ -884,17 +884,17 @@ export default function ProfilePage() {
             }}
           />
           <div className="relative z-10 w-full max-w-md rounded-2xl border border-cb-stroke/80 bg-[#0a0e14] p-5 shadow-2xl shadow-black/60 sm:p-6">
-            <h3 className="text-sm font-black uppercase tracking-wide text-white">Вивід предмета</h3>
+            <h3 className="text-sm font-black uppercase tracking-wide text-white">Вывод предмета</h3>
             <p className="mt-2 text-xs leading-relaxed text-zinc-500">
-              Заявка потрапить до адміна. Після підтвердження з вашого акаунта market.csgo виконується покупка лоту
-              (buy-for) і обмін на вказаний trade URL. Переконайтеся, що посилання актуальне і на маркеті достатньо
-              коштів.
+              Заявка попадёт к админу. После подтверждения с вашего аккаунта market.csgo выполняется покупка лота
+              (buy-for) и обмен на указанный trade URL. Убедитесь, что ссылка актуальна и на маркете достаточно
+              средств.
             </p>
             <p className="mt-2 rounded-lg border border-amber-600/35 bg-amber-950/25 px-3 py-2 text-[11px] leading-snug text-amber-200/95">
-              У Steam відкрийте інвентар для всіх:{" "}
-              <span className="font-semibold text-amber-100">Профіль → Редагувати профіль → Конфіденційність</span> — пункт
-              про інвентар має бути <span className="font-semibold">«Відкритий»</span> (Public). Інакше біржа не відправить
-              обмін.
+              В Steam откройте инвентарь для всех:{" "}
+              <span className="font-semibold text-amber-100">Профиль → Редактировать профиль → Конфиденциальность</span> — пункт
+              про инвентарь должен быть <span className="font-semibold">«Открытый»</span> (Public). Иначе биржа не отправит
+              обмен.
             </p>
             <p className="mt-3 line-clamp-2 text-sm font-semibold text-zinc-200">{withdrawItem.name}</p>
             <label className="mt-4 block text-[10px] font-bold uppercase tracking-wider text-zinc-500">
@@ -924,7 +924,7 @@ export default function ProfilePage() {
                 onClick={() => void submitWithdraw()}
                 className="rounded-xl border-2 border-cb-flame/60 bg-cb-flame/10 px-4 py-2 text-xs font-black uppercase tracking-wider text-white transition hover:bg-cb-flame/20 disabled:opacity-50"
               >
-                {withdrawBusy ? "Відправка…" : "Подати заявку"}
+                {withdrawBusy ? "Отправка…" : "Подать заявку"}
               </button>
             </div>
           </div>

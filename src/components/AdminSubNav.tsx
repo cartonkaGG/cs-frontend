@@ -63,7 +63,7 @@ export function AdminSubNav() {
             Пополнения
           </Link>
           <Link href="/admin/withdrawals" className={linkClass}>
-            Вивід Market.csgo
+            Вывод Market.csgo
           </Link>
           <Link href="/admin/audit-logs" className={linkClass}>
             Логи админов

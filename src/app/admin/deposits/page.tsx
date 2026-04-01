@@ -45,7 +45,7 @@ export default function AdminDepositsPage() {
     const r = await apiFetch<{ entries: Entry[]; total: number }>("/api/admin/deposits?limit=800");
     setLoading(false);
     if (!r.ok) {
-      setErr(r.error || "Не вдалося завантажити");
+      setErr(r.error || "Не удалось загрузить");
       setEntries([]);
       setTotal(0);
       return;
@@ -62,10 +62,10 @@ export default function AdminDepositsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Історія поповнень балансу</h1>
+          <h1 className="text-2xl font-bold text-white">История пополнений баланса</h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-500">
-            Крипто-платежі (у т.ч. очікують оплати), активації промокодів на баланс і ручні нарахування адміна
-            (add). Відсортовано за часом, нові зверху.
+            Крипто-платежи (в т.ч. ожидают оплаты), активации промокодов на баланс и ручные начисления админа
+            (add). Отсортировано по времени, новые сверху.
           </p>
         </div>
         <button
@@ -74,7 +74,7 @@ export default function AdminDepositsPage() {
           disabled={loading}
           className="rounded-xl border border-cb-stroke bg-black/40 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:border-amber-500/50 hover:text-white disabled:opacity-50"
         >
-          {loading ? "…" : "Оновити"}
+          {loading ? "…" : "Обновить"}
         </button>
       </div>
 
@@ -83,8 +83,8 @@ export default function AdminDepositsPage() {
       ) : null}
 
       <p className="text-xs text-zinc-600">
-        Показано <span className="font-mono text-zinc-400">{entries.length}</span> з{" "}
-        <span className="font-mono text-zinc-400">{total}</span> записів
+        Показано <span className="font-mono text-zinc-400">{entries.length}</span> из{" "}
+        <span className="font-mono text-zinc-400">{total}</span> записей
       </p>
 
       <div className="overflow-x-auto rounded-2xl border border-cb-stroke bg-cb-panel/40">
@@ -93,16 +93,16 @@ export default function AdminDepositsPage() {
             <tr>
               <th className="px-3 py-2.5">Час</th>
               <th className="px-3 py-2.5">Тип</th>
-              <th className="px-3 py-2.5">Користувач</th>
-              <th className="px-3 py-2.5">Сума ₽</th>
-              <th className="px-3 py-2.5">Деталі</th>
+              <th className="px-3 py-2.5">Пользователь</th>
+              <th className="px-3 py-2.5">Сумма ₽</th>
+              <th className="px-3 py-2.5">Детали</th>
             </tr>
           </thead>
           <tbody>
             {entries.length === 0 && !loading ? (
               <tr>
                 <td colSpan={5} className="px-3 py-10 text-center text-zinc-600">
-                  Поки немає записів поповнень.
+                  Пока нет записей пополнений.
                 </td>
               </tr>
             ) : null}
@@ -118,7 +118,7 @@ export default function AdminDepositsPage() {
               const rubLine =
                 e.kind === "crypto"
                   ? e.status === "pending"
-                    ? `очікує (база ${e.creditRubBase ?? "—"} ₽)`
+                    ? `ожидает (база ${e.creditRubBase ?? "—"} ₽)`
                     : `${rub ?? "—"} ₽`
                   : `${rub ?? "—"} ₽`;
 
@@ -132,13 +132,13 @@ export default function AdminDepositsPage() {
               } else if (e.kind === "promo") {
                 detail = e.promoCode ? `код ${e.promoCode}` : e.promoId || "промо";
               } else {
-                detail = `від ${e.adminDisplayName || "адміна"}${e.balanceAfter != null ? ` · баланс після: ${e.balanceAfter}` : ""}`;
+                detail = `от ${e.adminDisplayName || "админа"}${e.balanceAfter != null ? ` · баланс после: ${e.balanceAfter}` : ""}`;
               }
 
               return (
                 <tr key={e.id} className="border-b border-cb-stroke/60 hover:bg-black/20">
                   <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px] text-zinc-400">
-                    {e.at ? new Date(e.at).toLocaleString("uk-UA") : "—"}
+                    {e.at ? new Date(e.at).toLocaleString("ru-RU") : "—"}
                   </td>
                   <td className="px-3 py-2 text-zinc-300">{kindLabel[e.kind] || e.kind}</td>
                   <td className="px-3 py-2">

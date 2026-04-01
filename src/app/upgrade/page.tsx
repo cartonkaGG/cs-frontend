@@ -948,7 +948,7 @@ export default function UpgradePage() {
                         <button
                           key={it.itemId}
                           type="button"
-                          title={locked ? "Предмет на виводі" : undefined}
+                          title={locked ? "Предмет на выводе" : undefined}
                           disabled={spinning || locked}
                           onClick={() => toggleSel(it.itemId)}
                           className={`relative overflow-hidden rounded-lg border p-1 text-left transition ${rarityCardSurface(it.rarity || "common")} ${
@@ -972,7 +972,7 @@ export default function UpgradePage() {
                           </span>
                           {locked ? (
                             <span className="mt-0.5 block text-center text-[7px] font-bold uppercase text-amber-500/90">
-                              вивід
+                              вывод
                             </span>
                           ) : null}
                         </button>
@@ -993,7 +993,7 @@ export default function UpgradePage() {
                       <button
                         key={it.itemId}
                         type="button"
-                        title={locked ? "Предмет на виводі" : undefined}
+                        title={locked ? "Предмет на выводе" : undefined}
                         disabled={spinning || locked}
                         onClick={() => toggleSel(it.itemId)}
                         className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${rarityCardSurface(it.rarity || "common")} ${
@@ -1012,7 +1012,7 @@ export default function UpgradePage() {
                           </span>
                           {locked ? (
                             <span className="text-[8px] font-bold uppercase text-amber-500/90">
-                              на виводі
+                              на выводе
                             </span>
                           ) : null}
                         </div>

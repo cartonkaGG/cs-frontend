@@ -7,12 +7,15 @@ import { formatRub } from "@/lib/money";
 
 type InventoryItem = {
   itemId: string;
-  caseSlug: string;
+  caseSlug?: string;
   name: string;
   image: string;
   rarity: string;
   sellPrice: number;
-  obtainedAt: string;
+  obtainedAt?: string;
+  dmarketTitle?: string;
+  dmarketAssetId?: string;
+  exterior?: string;
 };
 
 type CaseOpenLog = {
@@ -20,7 +23,7 @@ type CaseOpenLog = {
   steamId: string;
   caseSlug: string;
   caseName: string;
-  pricePaid: number;
+  pricePaid?: number;
   itemName: string;
   rarity: string;
   image: string | null;
@@ -48,10 +51,47 @@ type PromoLog = {
   depositPercent?: number;
 };
 
+type DepositOrderRow = {
+  orderId: string;
+  createdAt: string;
+  credited: boolean;
+  creditedAt: string | null;
+  creditRubBase: number;
+  amountUsd: number;
+  paymentId: string | null;
+  depositPercent: number;
+  promoId: string | null;
+};
+
+type WithdrawalHistoryRow = {
+  id: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  itemName: string;
+  itemSellPrice: number;
+  transferId: string;
+  lastError: string;
+  resolvedAt: string;
+};
+
+type UpgradeLogRow = {
+  at: string;
+  win: boolean;
+  stakeTotal: number;
+  inputSum: number;
+  balanceBoostRub: number;
+  targetName: string;
+  targetPrice: number;
+  targetRarity: string;
+  chancePct: number;
+};
+
 type AdminUserResponse = {
   user: {
     steamId: string;
     displayName: string;
+    username?: string;
     avatar: string;
     role: string;
     balance: number;
@@ -60,6 +100,11 @@ type AdminUserResponse = {
     battlesPlayed: number;
     battleWins: number;
     battlesLosses: number;
+    /** Mongo _id або id у memory */
+    userId?: string;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+    upgradeRunBaseline?: number | null;
     inventory: InventoryItem[];
     bestItem: InventoryItem | null;
   };
@@ -67,6 +112,9 @@ type AdminUserResponse = {
     caseOpens: CaseOpenLog[];
     promoLogs: PromoLog[];
     sellLogs: SellLog[];
+    upgradeLogs?: UpgradeLogRow[];
+    depositOrders: DepositOrderRow[];
+    withdrawals: WithdrawalHistoryRow[];
   };
   derived: {
     net: number;
@@ -227,37 +275,71 @@ export default function AdminUsersPage() {
                     unoptimized
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xl font-bold text-white">{data.user.displayName}</p>
-                  <p className="mt-1 font-mono text-xs text-zinc-500">{data.user.steamId}</p>
+                  <p className="mt-1 font-mono text-xs text-zinc-500">Steam ID: {data.user.steamId}</p>
+                  {data.user.username && data.user.username !== data.user.displayName ? (
+                    <p className="mt-0.5 text-xs text-zinc-400">username: {data.user.username}</p>
+                  ) : null}
                   <p className="mt-1 text-xs text-amber-400/90">Роль: {data.user.role}</p>
+                  {data.user.userId ? (
+                    <p className="mt-1 font-mono text-[10px] text-zinc-600">userId: {data.user.userId}</p>
+                  ) : null}
+                  {(data.user.createdAt || data.user.updatedAt) && (
+                    <p className="mt-1 text-[10px] text-zinc-600">
+                      {data.user.createdAt
+                        ? `создан: ${data.user.createdAt.replace("T", " ").slice(0, 19)}`
+                        : null}
+                      {data.user.createdAt && data.user.updatedAt ? " · " : ""}
+                      {data.user.updatedAt
+                        ? `обновлён: ${data.user.updatedAt.replace("T", " ").slice(0, 19)}`
+                        : null}
+                    </p>
+                  )}
+                  {data.user.upgradeRunBaseline != null && Number.isFinite(data.user.upgradeRunBaseline) ? (
+                    <p className="mt-1 text-[10px] text-violet-400/90">
+                      upgrade baseline: {formatRub(data.user.upgradeRunBaseline)} ₽
+                    </p>
+                  ) : null}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-4">
+              <div className="grid w-full max-w-xl grid-cols-2 gap-3 text-sm sm:grid-cols-3">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-orange-300/80">
-                    Баланс
-                  </p>
-                  <p className="mt-1 font-mono text-2xl font-black text-white">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-orange-300/80">Баланс</p>
+                  <p className="mt-0.5 font-mono text-lg font-black text-white">
                     {formatRub(data.user.balance)} ₽
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">
-                    Нетто
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Роль</p>
+                  <p className="mt-0.5 font-medium text-zinc-200">{data.user.role || "user"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                    Потрачено / выиграно
                   </p>
-                  <p className="mt-1 font-mono text-lg font-black text-cb-flame">
+                  <p className="mt-0.5 font-mono text-xs text-zinc-300">
+                    {formatRub(data.user.totalSpent)} / {formatRub(data.user.totalWon)} ₽
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Бои (в / всего)</p>
+                  <p className="mt-0.5 font-mono text-xs text-zinc-300">
+                    {data.user.battleWins} / {data.user.battlesPlayed}
+                    {data.user.battlesLosses > 0 ? (
+                      <span className="text-zinc-600"> (пор: {data.user.battlesLosses})</span>
+                    ) : null}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Нетто (derived)</p>
+                  <p className="mt-0.5 font-mono text-xs font-semibold text-cb-flame">
                     {formatRub(data.derived.net)} ₽
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">
-                    Логи
-                  </p>
-                  <p className="mt-1 text-sm text-zinc-300">
-                    Открытий: {data.user.battlesPlayed} · Побед: {data.user.battleWins} ·
-                    Поражений: {data.user.battlesLosses}
-                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Инвентарь</p>
+                  <p className="mt-0.5 font-mono text-xs text-zinc-300">{data.user.inventory.length} шт.</p>
                 </div>
               </div>
             </div>
@@ -401,7 +483,7 @@ export default function AdminUsersPage() {
                     }}
                     className="min-h-[2.7rem] rounded-xl border border-violet-500/60 bg-violet-950/40 px-5 py-2 text-sm font-bold text-violet-200 transition hover:bg-violet-900/60 disabled:opacity-50"
                   >
-                    {roleBusy ? "Сохраняем…" : "Зберегти роль"}
+                    {roleBusy ? "Сохраняем…" : "Сохранить роль"}
                   </button>
                 </div>
               </div>
@@ -420,6 +502,12 @@ export default function AdminUsersPage() {
                   <p className="mt-1 text-sm text-zinc-400">
                     Редкость: {data.user.bestItem.rarity}
                   </p>
+                  {data.user.bestItem.caseSlug ? (
+                    <p className="mt-1 font-mono text-[10px] text-zinc-600">{data.user.bestItem.caseSlug}</p>
+                  ) : null}
+                  {data.user.bestItem.dmarketTitle ? (
+                    <p className="mt-1 text-[11px] text-sky-500/85">{data.user.bestItem.dmarketTitle}</p>
+                  ) : null}
                   <p className="mt-2 font-mono text-2xl font-black text-cb-flame">
                     {formatRub(data.user.bestItem.sellPrice)} ₽
                   </p>
@@ -467,7 +555,24 @@ export default function AdminUsersPage() {
                         <p className="mt-1 text-xs text-zinc-300">
                           Продажа:{" "}
                           <span className="font-mono">{formatRub(it.sellPrice)} ₽</span>
+                          {it.rarity ? (
+                            <span className="text-zinc-500"> · {it.rarity}</span>
+                          ) : null}
                         </p>
+                        <p className="mt-0.5 font-mono text-[10px] leading-tight text-zinc-600">
+                          {it.itemId}
+                          {it.caseSlug ? ` · ${it.caseSlug}` : ""}
+                          {it.obtainedAt
+                            ? ` · ${String(it.obtainedAt).replace("T", " ").slice(0, 16)}`
+                            : ""}
+                        </p>
+                        {(it.dmarketTitle || it.exterior || it.dmarketAssetId) && (
+                          <p className="mt-0.5 text-[10px] text-sky-500/85">
+                            {it.dmarketTitle || ""}
+                            {it.exterior ? ` (${it.exterior})` : ""}
+                            {it.dmarketAssetId ? ` · asset ${it.dmarketAssetId}` : ""}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -482,13 +587,15 @@ export default function AdminUsersPage() {
             <h2 className="text-lg font-bold text-white">Открытия кейсов</h2>
             {data.logs.caseOpens.length ? (
               <div className="overflow-x-auto rounded-xl border border-cb-stroke bg-cb-panel/30">
-                <table className="w-full min-w-[720px] text-left text-sm">
+                <table className="w-full min-w-[900px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-cb-stroke text-xs uppercase tracking-wider text-zinc-500">
                       <th className="px-4 py-3">Дата</th>
                       <th className="px-4 py-3">Кейс</th>
                       <th className="px-4 py-3">Предмет</th>
-                      <th className="px-4 py-3">Цена</th>
+                      <th className="px-4 py-3">Редкость</th>
+                      <th className="px-4 py-3">Оплачено</th>
+                      <th className="px-4 py-3">Цена предмета</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -497,8 +604,17 @@ export default function AdminUsersPage() {
                         <td className="px-4 py-2 text-xs text-zinc-500">
                           {new Date(l.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                         </td>
-                        <td className="px-4 py-2">{l.caseName || l.caseSlug}</td>
+                        <td className="px-4 py-2">
+                          <div>{l.caseName || l.caseSlug}</div>
+                          {l.caseSlug && l.caseName ? (
+                            <div className="font-mono text-[10px] text-zinc-600">{l.caseSlug}</div>
+                          ) : null}
+                        </td>
                         <td className="px-4 py-2">{l.itemName}</td>
+                        <td className="px-4 py-2 text-xs text-zinc-400">{l.rarity || "—"}</td>
+                        <td className="px-4 py-2 font-mono text-xs text-zinc-300">
+                          {formatRub(Number(l.pricePaid) || 0)} ₽
+                        </td>
                         <td className="px-4 py-2 font-mono text-cb-flame">
                           {formatRub(l.sellPrice)} ₽
                         </td>
@@ -512,13 +628,212 @@ export default function AdminUsersPage() {
             )}
           </div>
 
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-white">Апгрейды</h2>
+            {data.logs.upgradeLogs?.length ? (
+              <div className="overflow-x-auto rounded-xl border border-cb-stroke bg-cb-panel/30">
+                <table className="w-full min-w-[880px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-cb-stroke text-xs uppercase tracking-wider text-zinc-500">
+                      <th className="px-4 py-3">Дата</th>
+                      <th className="px-4 py-3">Результат</th>
+                      <th className="px-4 py-3">Ставка</th>
+                      <th className="px-4 py-3">Цель</th>
+                      <th className="px-4 py-3">Шанс %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.logs.upgradeLogs.map((u, idx) => (
+                      <tr key={`${u.at}-${idx}`} className="border-b border-cb-stroke/60 last:border-0">
+                        <td className="px-4 py-2 text-xs text-zinc-500">
+                          {u.at?.replace("T", " ").slice(0, 19) || "—"}
+                        </td>
+                        <td className="px-4 py-2">
+                          {u.win ? (
+                            <span className="text-emerald-400">Выигрыш</span>
+                          ) : (
+                            <span className="text-rose-400/90">Проигрыш</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 font-mono text-xs text-zinc-300">
+                          {formatRub(u.stakeTotal)} ₽
+                          {u.balanceBoostRub ? (
+                            <span className="text-[10px] text-violet-400/80">
+                              {" "}
+                              +boost {formatRub(u.balanceBoostRub)}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="max-w-[240px]">{u.targetName || "—"}</div>
+                          <div className="font-mono text-xs text-cb-flame/90">
+                            {formatRub(u.targetPrice)} ₽
+                          </div>
+                          {u.targetRarity ? (
+                            <div className="text-[10px] text-zinc-600">{u.targetRarity}</div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-2 font-mono text-xs text-zinc-400">
+                          {u.chancePct != null && Number.isFinite(Number(u.chancePct))
+                            ? `${Number(u.chancePct).toFixed(2)}%`
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-500">Нет записей апгрейдов</p>
+            )}
+          </div>
+
           <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-bold text-white">Пополнения (NOWPayments)</h2>
+              {data.logs.depositOrders?.length ? (
+                <div className="mt-3 overflow-x-auto rounded-xl border border-cb-stroke bg-cb-panel/30">
+                  <table className="w-full min-w-[840px] text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-cb-stroke text-xs uppercase tracking-wider text-zinc-500">
+                        <th className="px-4 py-3">Дата</th>
+                        <th className="px-4 py-3">Order</th>
+                        <th className="px-4 py-3">Статус</th>
+                        <th className="px-4 py-3">Кредит ₽</th>
+                        <th className="px-4 py-3">USD</th>
+                        <th className="px-4 py-3">Payment ID</th>
+                        <th className="px-4 py-3">Промо</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.logs.depositOrders.map((o) => (
+                        <tr key={o.orderId} className="border-b border-cb-stroke/60 last:border-0">
+                          <td className="px-4 py-2 text-xs text-zinc-500">
+                            {o.createdAt?.replace("T", " ").slice(0, 19) || "—"}
+                          </td>
+                          <td className="px-4 py-2 font-mono text-[11px] text-zinc-300">{o.orderId}</td>
+                          <td className="px-4 py-2">
+                            {o.credited ? (
+                              <span className="text-emerald-400">Зачислено</span>
+                            ) : (
+                              <span className="text-amber-400">Ожидание</span>
+                            )}
+                            {o.creditedAt ? (
+                              <span className="ml-1 text-[10px] text-zinc-600">
+                                {o.creditedAt.slice(0, 19)}
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="px-4 py-2 font-mono text-emerald-300/90">
+                            {formatRub(o.creditRubBase)} ₽
+                            {o.depositPercent > 0 ? (
+                              <span className="text-[10px] text-zinc-500"> +{o.depositPercent}%</span>
+                            ) : null}
+                          </td>
+                          <td className="px-4 py-2 font-mono text-xs text-zinc-400">{o.amountUsd}</td>
+                          <td className="px-4 py-2 font-mono text-[10px] text-zinc-500">
+                            {o.paymentId || "—"}
+                          </td>
+                          <td className="px-4 py-2 font-mono text-[10px] text-zinc-500">
+                            {o.promoId || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-zinc-500">Нет записей пополнений</p>
+              )}
+            </div>
+
+            <div>
+              <h2 className="text-lg font-bold text-white">Заявки на вывод (Market.csgo)</h2>
+              {data.logs.withdrawals?.length ? (
+                <div className="mt-3 overflow-x-auto rounded-xl border border-cb-stroke bg-cb-panel/30">
+                  <table className="w-full min-w-[820px] text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-cb-stroke text-xs uppercase tracking-wider text-zinc-500">
+                        <th className="px-4 py-3">Создано</th>
+                        <th className="px-4 py-3">Обновлено</th>
+                        <th className="px-4 py-3">Статус</th>
+                        <th className="px-4 py-3">Предмет</th>
+                        <th className="px-4 py-3">Лот</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.logs.withdrawals.map((w) => (
+                        <tr key={w.id} className="border-b border-cb-stroke/60 last:border-0">
+                          <td className="px-4 py-2 text-xs text-zinc-500">
+                            {w.createdAt?.replace("T", " ").slice(0, 19) || "—"}
+                          </td>
+                          <td className="px-4 py-2 text-xs text-zinc-600">
+                            {w.updatedAt?.replace("T", " ").slice(0, 19) || "—"}
+                          </td>
+                          <td className="px-4 py-2">
+                            <span className="font-semibold text-zinc-200">{w.status}</span>
+                            {w.resolvedAt ? (
+                              <div className="text-[10px] text-zinc-600">resolved: {w.resolvedAt.slice(0, 19)}</div>
+                            ) : null}
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="max-w-[220px]">{w.itemName || "—"}</div>
+                            <div className="font-mono text-xs text-cb-flame/90">
+                              {formatRub(w.itemSellPrice)} ₽
+                            </div>
+                            {w.lastError ? (
+                              <div className="mt-1 max-w-[280px] text-[10px] text-red-400/90">{w.lastError}</div>
+                            ) : null}
+                          </td>
+                          <td className="px-4 py-2 font-mono text-[10px] text-zinc-500">
+                            {w.transferId || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-zinc-500">Нет заявок на вывод</p>
+              )}
+            </div>
+
             <div>
               <h2 className="text-lg font-bold text-white">Промокоды</h2>
               {data.logs.promoLogs.length ? (
-                <pre className="mt-3 max-h-96 overflow-auto rounded-xl border border-cb-stroke bg-black/20 p-3 text-xs text-zinc-300">
-{JSON.stringify(data.logs.promoLogs, null, 2)}
-                </pre>
+                <div className="mt-3 overflow-x-auto rounded-xl border border-cb-stroke bg-cb-panel/30">
+                  <table className="w-full min-w-[720px] text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-cb-stroke text-xs uppercase tracking-wider text-zinc-500">
+                        <th className="px-4 py-3">Дата</th>
+                        <th className="px-4 py-3">Промо</th>
+                        <th className="px-4 py-3">userSub</th>
+                        <th className="px-4 py-3">Начисление</th>
+                        <th className="px-4 py-3">Тип / % депозита</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.logs.promoLogs.map((p, idx) => (
+                        <tr key={`${p.at}-${idx}`} className="border-b border-cb-stroke/60 last:border-0">
+                          <td className="px-4 py-2 text-xs text-zinc-500">
+                            {p.at?.replace("T", " ").slice(0, 19) || "—"}
+                          </td>
+                          <td className="px-4 py-2 font-mono text-[11px] text-zinc-300">
+                            {p.promoId || "—"}
+                          </td>
+                          <td className="px-4 py-2 font-mono text-[10px] text-zinc-600">{p.userSub}</td>
+                          <td className="px-4 py-2 font-mono text-emerald-300/90">+{formatRub(p.grant)} ₽</td>
+                          <td className="px-4 py-2 text-xs text-zinc-400">
+                            {p.rewardType || "—"}
+                            {p.depositPercent != null && p.depositPercent > 0 ? (
+                              <span className="text-zinc-500"> · депозит +{p.depositPercent}%</span>
+                            ) : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <p className="text-sm text-zinc-500">Нет логов промокодов</p>
               )}
@@ -528,28 +843,35 @@ export default function AdminUsersPage() {
               <h2 className="text-lg font-bold text-white">Продажи</h2>
               {data.logs.sellLogs.length ? (
                 <div className="overflow-x-auto rounded-xl border border-cb-stroke bg-cb-panel/30">
-                  <table className="w-full min-w-[720px] text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-cb-stroke text-xs uppercase tracking-wider text-zinc-500">
-                        <th className="px-4 py-3">Дата</th>
-                        <th className="px-4 py-3">Предмет</th>
-                        <th className="px-4 py-3">Продажа</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                <table className="w-full min-w-[860px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-cb-stroke text-xs uppercase tracking-wider text-zinc-500">
+                      <th className="px-4 py-3">Дата</th>
+                      <th className="px-4 py-3">Предмет</th>
+                      <th className="px-4 py-3">Кейс / itemId</th>
+                      <th className="px-4 py-3">Редкость</th>
+                      <th className="px-4 py-3">Продажа</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                       {data.logs.sellLogs.map((l, idx) => (
                         <tr key={`${l.at}-${idx}`} className="border-b border-cb-stroke/60 last:border-0">
                           <td className="px-4 py-2 text-xs text-zinc-500">
                             {new Date(l.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                           </td>
                           <td className="px-4 py-2">{l.name}</td>
+                          <td className="px-4 py-2 font-mono text-[10px] text-zinc-500">
+                            <div>{l.caseSlug || "—"}</div>
+                            <div className="text-zinc-600">{l.itemId}</div>
+                          </td>
+                          <td className="px-4 py-2 text-xs text-zinc-400">{l.rarity || "—"}</td>
                           <td className="px-4 py-2 font-mono text-cb-flame">
                             {formatRub(l.sellPrice)} ₽
                           </td>
                         </tr>
                       ))}
-                    </tbody>
-                  </table>
+                  </tbody>
+                </table>
                 </div>
               ) : (
                 <p className="text-sm text-zinc-500">Нет логов продаж</p>
