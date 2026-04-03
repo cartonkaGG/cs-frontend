@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { formatRub } from "@/lib/money";
 import type { AdminCaseFull } from "@/lib/caseConfig";
 import Image from "next/image";
+import { preferHighResSteamEconomyImage, SKIN_IMG_QUALITY_CLASS } from "@/lib/steamImage";
 
 export default function AdminCasesListPage() {
   const [cases, setCases] = useState<AdminCaseFull[]>([]);
@@ -63,11 +64,12 @@ export default function AdminCasesListPage() {
                   <div className="relative h-12 w-16 overflow-hidden rounded-lg bg-black/40">
                     {c.image ? (
                       <Image
-                        src={c.image}
+                        src={preferHighResSteamEconomyImage(c.image, "compat") ?? c.image}
                         alt=""
                         fill
-                        className="object-cover"
+                        className={`object-cover ${SKIN_IMG_QUALITY_CLASS}`}
                         sizes="64px"
+                        quality={100}
                         unoptimized
                       />
                     ) : (

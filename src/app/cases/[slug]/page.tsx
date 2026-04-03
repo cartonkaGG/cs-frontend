@@ -18,7 +18,7 @@ import { apiFetch, getToken } from "@/lib/api";
 import { requestAuthModal } from "@/lib/authModal";
 import { sortLootGoldToGray } from "@/lib/caseLootSort";
 import { formatRub } from "@/lib/money";
-import { preferHighResSteamEconomyImage } from "@/lib/steamImage";
+import { preferHighResSteamEconomyImage, SKIN_IMG_QUALITY_CLASS } from "@/lib/steamImage";
 
 type CaseDisplayOdds = {
   items: Array<{ name: string; rarity: string; sellPrice: number; chancePct: number }>;
@@ -109,11 +109,12 @@ function FastDropHeroCard({
             <div className="relative mx-auto h-[200px] w-full max-w-[260px] sm:h-[240px]">
               {drop.item.image ? (
                 <Image
-                  src={drop.item.image}
+                  src={preferHighResSteamEconomyImage(drop.item.image) ?? drop.item.image}
                   alt=""
                   fill
-                  className="object-contain drop-shadow-xl"
+                  className={`object-contain drop-shadow-xl ${SKIN_IMG_QUALITY_CLASS}`}
                   sizes="(max-width: 640px) 85vw, 300px"
+                  quality={100}
                   unoptimized
                 />
               ) : (
@@ -156,10 +157,11 @@ function BatchResultMiniCard({
       <div className="relative mx-auto h-[100px] w-full shrink-0 px-2 sm:h-[118px]">
         {row.item.image ? (
           <Image
-            src={row.item.image}
+            src={preferHighResSteamEconomyImage(row.item.image) ?? row.item.image}
             alt=""
             fill
-            className="object-contain drop-shadow-[0_0_14px_rgba(34,211,238,0.18)] [transform:translateZ(0)]"
+            className={`object-contain drop-shadow-[0_0_14px_rgba(34,211,238,0.18)] ${SKIN_IMG_QUALITY_CLASS}`}
+            quality={100}
             unoptimized
           />
         ) : (
@@ -655,7 +657,7 @@ export default function CaseOpenPage() {
                             style={{ transform: `translateZ(0) scale(${heroCaseS})` }}
                           >
                             <Image
-                              src={preferHighResSteamEconomyImage(c.image) ?? c.image}
+                              src={preferHighResSteamEconomyImage(c.image, "compat") ?? c.image}
                               alt=""
                               fill
                               sizes="(max-width: 640px) 96vw, (max-width: 1536px) 45vw, 640px"
@@ -960,10 +962,11 @@ export default function CaseOpenPage() {
                       <div className="relative aspect-square w-full bg-black/35 p-2">
                         {it.image ? (
                           <Image
-                            src={it.image}
+                            src={preferHighResSteamEconomyImage(it.image) ?? it.image}
                             alt=""
                             fill
-                            className="object-contain p-1 transition group-hover:scale-105"
+                            className={`object-contain p-1 transition group-hover:scale-105 ${SKIN_IMG_QUALITY_CLASS}`}
+                            quality={100}
                             unoptimized
                           />
                         ) : (

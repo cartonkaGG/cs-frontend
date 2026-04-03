@@ -285,6 +285,74 @@ body {
   }
 }
 
+/* Апгрейд: запрошення обрати ціль — великі «пливучі» стрілки вниз */
+@keyframes ug-target-invite-chevron {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(14px) scale(1.12);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ug-target-invite-chevron {
+    animation: ug-target-invite-chevron 1.65s ease-in-out infinite;
+  }
+  .ug-target-invite-chevron--1 {
+    animation-delay: 0ms;
+  }
+  .ug-target-invite-chevron--2 {
+    animation-delay: 200ms;
+  }
+  .ug-target-invite-chevron--3 {
+    animation-delay: 400ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ug-target-invite-chevron {
+    animation: none;
+  }
+}
+
+/* Апгрейд: взнос — стрілки вгору (обери предмети нижче в сітці). */
+@keyframes ug-stake-invite-chevron {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(-12px) scale(1.12);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ug-stake-invite-chevron {
+    animation: ug-stake-invite-chevron 1.65s ease-in-out infinite;
+  }
+  .ug-stake-invite-chevron--1 {
+    animation-delay: 0ms;
+  }
+  .ug-stake-invite-chevron--2 {
+    animation-delay: 200ms;
+  }
+  .ug-stake-invite-chevron--3 {
+    animation-delay: 400ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ug-stake-invite-chevron {
+    animation: none;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

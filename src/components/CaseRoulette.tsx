@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { preferHighResSteamEconomyImage, SKIN_IMG_QUALITY_CLASS } from "@/lib/steamImage";
 import {
   getRouletteSoundMuted,
   setRouletteSoundMuted,
@@ -113,10 +114,11 @@ const RouletteCard = memo(function RouletteCard({
         <div className="relative mx-auto min-h-0 flex-1 basis-0 w-full">
           {item.image ? (
             <Image
-              src={item.image}
+              src={preferHighResSteamEconomyImage(item.image) ?? item.image}
               alt=""
               fill
-              className="object-contain drop-shadow-lg"
+              className={`object-contain drop-shadow-lg ${SKIN_IMG_QUALITY_CLASS}`}
+              quality={100}
               unoptimized
             />
           ) : (

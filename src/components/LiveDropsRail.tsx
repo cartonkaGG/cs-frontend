@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { normRarity, rarityBar, rarityCardFill } from "@/components/CaseRoulette";
+import { preferHighResSteamEconomyImage, SKIN_IMG_QUALITY_CLASS } from "@/lib/steamImage";
 import type { LiveDrop } from "@/hooks/useLiveDrops";
 
 function splitItemDisplay(item: string): { weapon: string; skin: string } {
@@ -34,11 +35,12 @@ function DropRow({ d }: { d: LiveDrop }) {
         <div className="relative min-h-[4rem] w-full max-w-[5.5rem] flex-1 sm:min-h-[4.5rem] sm:max-w-[6rem]">
           {d.image ? (
             <Image
-              src={d.image}
+              src={preferHighResSteamEconomyImage(d.image) ?? d.image}
               alt=""
               fill
-              className="object-contain object-center drop-shadow-[0_4px_14px_rgba(0,0,0,0.45)]"
-              sizes="96px"
+              className={`object-contain object-center drop-shadow-[0_4px_14px_rgba(0,0,0,0.45)] ${SKIN_IMG_QUALITY_CLASS}`}
+              sizes="112px"
+              quality={100}
               unoptimized
             />
           ) : (

@@ -2,11 +2,20 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { normRarity, rarityCardFill } from "@/components/CaseRoulette";
 import { SiteShell } from "@/components/SiteShell";
 import { apiFetch, getToken } from "@/lib/api";
-import { formatRub } from "@/lib/money";
+import { formatRubSpaced } from "@/lib/money";
+import { preferHighResSteamEconomyImage, SKIN_IMG_QUALITY_CLASS } from "@/lib/steamImage";
 import { requestAuthModal } from "@/lib/authModal";
 
 type InvItem = {
@@ -28,33 +37,62 @@ type CatalogItem = {
   image: string | null;
 };
 
-/** Зведення взносу — «HUD» блок без гучних градієнтів */
-const UPGRADE_SUMMARY_BOX =
-  "mx-auto mb-3 w-full max-w-[280px] rounded-xl border border-zinc-700/40 bg-gradient-to-b from-zinc-900/85 via-zinc-950/80 to-black/75 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_8px_32px_rgba(0,0,0,0.35)] sm:max-w-xs";
-const UPGRADE_SUMMARY_ROW = "flex items-center justify-between gap-3 py-1.5";
-const UPGRADE_SUMMARY_LABEL = "text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500";
-const UPGRADE_SUMMARY_VALUE =
-  "text-right font-mono text-[13px] font-bold tabular-nums text-emerald-400/95 [text-shadow:0_0_18px_rgba(52,211,153,0.15)] sm:text-sm";
-const UPGRADE_SUMMARY_VALUE_MUTED = "text-right font-mono text-xs font-semibold tabular-nums text-cyan-400/90";
+/** Верхня колонка без зовнішньої «картки» — лише контент (внутрішні блоки в стилі сайту). */
+const UPGRADE_TOP_COLUMN = "flex min-h-0 flex-col";
+const UPGRADE_TOP_FIELD_TITLE =
+  "mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500";
+/** Спільна квадратна картка прев’ю (взнос і ціль — той самий розмір). */
+const UPGRADE_PREVIEW_CARD =
+  "relative mx-auto flex aspect-square w-full max-w-[min(100%,340px)] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl bg-[#0c0b0f] px-3 py-3 shadow-[0_12px_48px_rgba(0,0,0,0.65)] sm:max-w-[min(100%,400px)] sm:rounded-[1.25rem] sm:px-4 sm:py-4";
 
-/** Ціна на картці інвентаря / каталогу */
-const UPGRADE_PRICE_CHIP =
-  "mt-0.5 flex w-full items-center justify-center rounded-md border border-zinc-600/45 bg-black/50 py-1 px-1.5 font-mono text-[9px] font-semibold tabular-nums text-emerald-300/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:text-[10px]";
-const UPGRADE_PRICE_CHIP_INLINE =
-  "flex w-full items-center justify-center rounded-md border border-zinc-600/45 bg-black/50 py-1 px-1.5 font-mono text-[9px] font-semibold tabular-nums text-emerald-300/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:text-[10px]";
+/** Цінник скінів у сітці апгрейду (компактний HUD). */
+const UPGRADE_SKIN_PRICE_TAG_GRID =
+  "flex max-w-[min(100%,11.5rem)] items-baseline gap-0.5 rounded-md border border-emerald-400/45 bg-gradient-to-b from-zinc-900/97 via-zinc-950/98 to-black/92 px-1.5 py-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_2px_8px_rgba(0,0,0,0.5),0_0_16px_rgba(52,211,153,0.14)] backdrop-blur-sm";
+const UPGRADE_SKIN_PRICE_NUM =
+  "whitespace-nowrap font-mono text-[10px] font-bold tabular-nums leading-none tracking-tight text-emerald-100 sm:text-[11px]";
+const UPGRADE_SKIN_PRICE_SYM =
+  "shrink-0 font-mono text-[8px] font-semibold leading-none text-emerald-400/85 sm:text-[9px]";
+/** Цінник у рядку списку (той самий стиль, трохи просторіше). */
+const UPGRADE_SKIN_PRICE_TAG_ROW =
+  "inline-flex max-w-full items-baseline gap-0.5 rounded-lg border border-emerald-400/40 bg-gradient-to-b from-zinc-900/95 to-black/90 px-2 py-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_14px_rgba(52,211,153,0.1)]";
+const UPGRADE_SKIN_PRICE_NUM_ROW =
+  "whitespace-nowrap font-mono text-[11px] font-bold tabular-nums leading-none tracking-tight text-emerald-100 sm:text-[12px]";
+const UPGRADE_SKIN_PRICE_SYM_ROW = "shrink-0 font-mono text-[9px] font-semibold text-emerald-400/80";
+
+/** Цінник на міні-картці обраних предметів (компактніша шкала). */
+const UPGRADE_STAKE_MINI_PRICE_WRAP =
+  "flex max-w-[min(100%,9.5rem)] origin-top-right scale-[0.82] items-baseline gap-0.5 rounded-md border border-emerald-400/45 bg-gradient-to-b from-zinc-900/97 via-zinc-950/98 to-black/92 px-1 py-px shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_2px_8px_rgba(0,0,0,0.5),0_0_12px_rgba(52,211,153,0.12)] backdrop-blur-sm";
+const UPGRADE_STAKE_MINI_PRICE_NUM =
+  "whitespace-nowrap font-mono text-[9px] font-bold tabular-nums leading-none tracking-tight text-emerald-100";
+const UPGRADE_STAKE_MINI_PRICE_SYM = "shrink-0 font-mono text-[7px] font-semibold leading-none text-emerald-400/85";
 
 /** Мітка біля слайдера балансу */
 const UPGRADE_BOOST_BADGE =
-  "inline-flex shrink-0 items-center rounded-md border border-cyan-500/25 bg-cyan-950/20 px-2 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-cyan-300/95";
+  "inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-cyan-500/25 bg-cyan-950/20 px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums tracking-tight text-cyan-300/95";
 
-/** Ціна обраної цілі */
-const UPGRADE_TARGET_PRICE_WRAP =
-  "mt-2 flex flex-col items-center gap-1 rounded-xl border border-amber-500/30 bg-gradient-to-b from-amber-950/35 via-black/50 to-black/70 px-4 py-2.5 shadow-[0_0_28px_rgba(245,158,11,0.07),inset_0_1px_0_rgba(255,255,255,0.05)]";
-const UPGRADE_TARGET_PRICE_LABEL = "text-[9px] font-semibold uppercase tracking-[0.14em] text-amber-200/45";
-const UPGRADE_TARGET_PRICE_ROW = "flex items-baseline justify-center gap-1";
-const UPGRADE_TARGET_PRICE_NUM =
-  "font-mono text-lg font-bold tabular-nums text-amber-100 sm:text-xl";
-const UPGRADE_TARGET_PRICE_CUR = "text-sm font-medium text-amber-500/75";
+/** Ціна внизу картки цілі — яскраво-жовтий акцент (як на референсі). */
+const UPGRADE_TARGET_CARD_PRICE_ROW =
+  "mt-auto flex shrink-0 items-baseline justify-center gap-1.5 pt-2";
+const UPGRADE_TARGET_CARD_PRICE_NUM =
+  "text-center font-mono text-base font-bold tabular-nums tracking-tight text-amber-400 [text-shadow:0_0_24px_rgba(251,191,36,0.25)] sm:text-lg";
+const UPGRADE_TARGET_CARD_PRICE_CUR =
+  "shrink-0 font-mono text-sm font-bold text-amber-400/95 sm:text-base";
+
+/** Червоне залиття обраної картки в сітці (над фоном і зображенням, під ціною та текстом). */
+const UPGRADE_GRID_SELECTED_OVERLAY = "pointer-events-none absolute inset-0 z-[1] bg-red-600/[0.44]";
+/** Галочка обраного — червоне коло, білий символ; при hover — темніше коло з ✕. */
+const UPGRADE_SELECTED_CHECK =
+  "inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-500 text-[16px] font-bold leading-none text-white shadow-[0_2px_14px_rgba(0,0,0,0.35),0_0_20px_rgba(239,68,68,0.45)] group-hover:hidden";
+const UPGRADE_SELECTED_UNCHECK =
+  "inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-950/95 text-[15px] font-bold leading-none text-red-200 shadow-[0_0_18px_rgba(0,0,0,0.5)] ring-1 ring-red-500/50 group-hover:inline-flex hidden";
+const UPGRADE_SELECTED_CHECK_SM =
+  "inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-[14px] font-bold leading-none text-white shadow-[0_2px_12px_rgba(0,0,0,0.32),0_0_16px_rgba(239,68,68,0.4)] group-hover:hidden";
+const UPGRADE_SELECTED_UNCHECK_SM =
+  "inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-950/95 text-[13px] font-bold leading-none text-red-200 shadow-[0_0_14px_rgba(0,0,0,0.45)] ring-1 ring-red-500/45 group-hover:inline-flex hidden";
+const UPGRADE_SELECTED_CHECK_XS =
+  "inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-[12px] font-bold leading-none text-white shadow-[0_2px_10px_rgba(0,0,0,0.32),0_0_14px_rgba(239,68,68,0.38)] group-hover:hidden";
+const UPGRADE_SELECTED_UNCHECK_XS =
+  "inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-950/95 text-[11px] font-bold leading-none text-red-200 shadow-[0_0_12px_rgba(0,0,0,0.45)] ring-1 ring-red-500/45 group-hover:inline-flex hidden";
 
 const RARITY_CARD_BORDER: Record<string, string> = {
   common: "border-zinc-500/55",
@@ -73,8 +111,8 @@ const RARITY_CARD_BORDER: Record<string, string> = {
   contraband: "border-orange-500/55",
 };
 
-/** Те саме залиття, що й картки рулетки кейсу + бордер. Fallback для дивних рядків з API. */
-function rarityCardSurface(r: string) {
+/** Нормалізація ключа рідкості для карток апґрейду (сітка). */
+function resolveUpgradeRarityKey(r: string): string {
   let rk = normRarity(r);
   if (!(rk in rarityCardFill)) {
     const k = String(r || "").toLowerCase();
@@ -92,18 +130,96 @@ function rarityCardSurface(r: string) {
     else if (k.includes("rare")) rk = "rare";
     else rk = "common";
   }
+  return rk;
+}
+
+/** Зовнішнє неонове світіння (відповідає кольору бордера). */
+const RARITY_UPGRADE_NEON_OUTER: Record<string, string> = {
+  common:
+    "shadow-[0_0_8px_rgba(161,161,170,0.22),0_0_18px_rgba(113,113,122,0.14),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+  uncommon:
+    "shadow-[0_0_9px_rgba(56,189,248,0.26),0_0_20px_rgba(14,165,233,0.15),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+  rare: "shadow-[0_0_9px_rgba(59,130,246,0.26),0_0_20px_rgba(37,99,235,0.15),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+  epic: "shadow-[0_0_9px_rgba(217,70,239,0.26),0_0_20px_rgba(192,38,211,0.15),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+  legendary:
+    "shadow-[0_0_9px_rgba(251,191,36,0.26),0_0_20px_rgba(245,158,11,0.15),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+  consumer:
+    "shadow-[0_0_8px_rgba(161,161,170,0.2),0_0_18px_rgba(113,113,122,0.12),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+  industrial:
+    "shadow-[0_0_8px_rgba(148,163,184,0.22),0_0_19px_rgba(100,116,139,0.13),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+  milspec:
+    "shadow-[0_0_9px_rgba(59,130,246,0.26),0_0_20px_rgba(37,99,235,0.15),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+  "mil-spec":
+    "shadow-[0_0_9px_rgba(59,130,246,0.26),0_0_20px_rgba(37,99,235,0.15),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+  restricted:
+    "shadow-[0_0_9px_rgba(139,92,246,0.26),0_0_20px_rgba(124,58,237,0.15),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+  classified:
+    "shadow-[0_0_9px_rgba(217,70,239,0.26),0_0_20px_rgba(192,38,211,0.15),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+  covert:
+    "shadow-[0_0_10px_rgba(239,68,68,0.28),0_0_22px_rgba(220,38,38,0.16),inset_0_0_0_1px_rgba(255,255,255,0.045)]",
+  extraordinary:
+    "shadow-[0_0_9px_rgba(251,191,36,0.28),0_0_22px_rgba(234,179,8,0.16),inset_0_0_0_1px_rgba(255,255,255,0.045)]",
+  contraband:
+    "shadow-[0_0_9px_rgba(249,115,22,0.26),0_0_20px_rgba(234,88,12,0.15),inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+};
+
+/** Радіальний градієнт за прев’ю цілі — колір якості (узгоджено з неоном карток). */
+const RARITY_TARGET_AURA_CENTER: Record<string, string> = {
+  common: "rgba(161,161,170,0.52)",
+  uncommon: "rgba(56,189,248,0.5)",
+  rare: "rgba(59,130,246,0.5)",
+  epic: "rgba(217,70,239,0.5)",
+  legendary: "rgba(251,191,36,0.5)",
+  consumer: "rgba(161,161,170,0.48)",
+  industrial: "rgba(148,163,184,0.5)",
+  milspec: "rgba(59,130,246,0.5)",
+  "mil-spec": "rgba(59,130,246,0.5)",
+  restricted: "rgba(139,92,246,0.5)",
+  classified: "rgba(217,70,239,0.5)",
+  covert: "rgba(239,68,68,0.58)",
+  extraordinary: "rgba(251,191,36,0.52)",
+  contraband: "rgba(234,88,12,0.58)",
+};
+
+function targetPreviewAuraStyle(rk: string): CSSProperties {
+  const c = RARITY_TARGET_AURA_CENTER[rk] || RARITY_TARGET_AURA_CENTER.common;
+  return {
+    background: `radial-gradient(ellipse 72% 66% at 50% 48%, ${c} 0%, transparent 70%)`,
+  };
+}
+
+/** Пляма позаду скіна — той самий відтінок, що й `RARITY_CARD_BORDER`, лише м’якша прозорість для блюру. */
+const RARITY_UPGRADE_IMAGE_GLOW: Record<string, string> = {
+  common: "bg-zinc-500/50",
+  uncommon: "bg-sky-400/50",
+  rare: "bg-blue-500/50",
+  epic: "bg-fuchsia-500/50",
+  legendary: "bg-amber-400/50",
+  consumer: "bg-zinc-400/50",
+  industrial: "bg-slate-400/50",
+  milspec: "bg-blue-500/50",
+  "mil-spec": "bg-blue-500/50",
+  restricted: "bg-violet-500/50",
+  classified: "bg-fuchsia-500/50",
+  covert: "bg-red-600/50",
+  extraordinary: "bg-amber-400/50",
+  contraband: "bg-orange-500/50",
+};
+
+/** Те саме залиття, що й картки рулетки кейсу + бордер. Fallback для дивних рядків з API. */
+function rarityCardSurface(r: string) {
+  const rk = resolveUpgradeRarityKey(r);
   const fill = rarityCardFill[rk] || rarityCardFill.common;
   const line = RARITY_CARD_BORDER[rk] || RARITY_CARD_BORDER.common;
   return `${line} ${fill}`;
 }
 
-function rarityTint(r: string) {
-  const k = String(r || "common").toLowerCase();
-  if (k.includes("covert")) return "from-red-950/55 via-cb-panel/90 to-cb-void";
-  if (k.includes("classified")) return "from-fuchsia-950/45 via-cb-panel/90 to-cb-void";
-  if (k.includes("restricted")) return "from-violet-950/40 via-cb-panel/90 to-cb-void";
-  if (k.includes("legendary")) return "from-amber-950/35 via-cb-panel/90 to-cb-void";
-  return "from-zinc-950/80 via-cb-panel to-cb-void";
+/** Сітка апґрейду: бордер за рідкістю + неон навколо картки (без градієнта в чорний низ). */
+function rarityCardSurfaceUpgradeGrid(r: string) {
+  const rk = resolveUpgradeRarityKey(r);
+  const line = RARITY_CARD_BORDER[rk] || RARITY_CARD_BORDER.common;
+  const neon = RARITY_UPGRADE_NEON_OUTER[rk] || RARITY_UPGRADE_NEON_OUTER.common;
+  return `${line} bg-black/25 ${neon}`;
 }
 
 function pickTargetNearPrice(catalog: CatalogItem[], inputSum: number, targetPrice: number): string | null {
@@ -116,6 +232,15 @@ function pickTargetNearPrice(catalog: CatalogItem[], inputSum: number, targetPri
   return best.id;
 }
 
+/** Розбити назву скіну на «категорію» (до |) і основний заголовок — як на референсі. */
+function splitTargetDisplayName(name: string): { category: string | null; title: string } {
+  const i = name.indexOf("|");
+  if (i === -1) return { category: null, title: name.trim() };
+  const left = name.slice(0, i).trim();
+  const right = name.slice(i + 1).trim();
+  return { category: left || null, title: right || name.trim() };
+}
+
 /**
  * Умовна частка «1/x» у % (взнос / ціль) — тільки для дуги та цифри в центрі.
  * Кидок на сервері: win ⟺ roll &lt; pWin за RTP (нижче за цей показник).
@@ -125,6 +250,91 @@ function fairArcPctFromStakeAndTarget(stakeTotal: number, targetPrice: number): 
   const p = Number(targetPrice);
   if (!Number.isFinite(s) || !Number.isFinite(p) || s <= 0 || p <= s) return 0;
   return Math.min(100, (s / p) * 100);
+}
+
+/** Сітка 5×3 під фіксовану висоту панелі; список — компактні рядки без внутрішнього скролу. */
+const UPGRADE_PAGE_GRID = 15;
+const UPGRADE_PAGE_LIST = 8;
+
+function upgradePaginationModel(
+  current: number,
+  total: number,
+  siblingCount = 2,
+): (number | "ellipsis")[] {
+  if (total < 1) return [];
+  if (total <= siblingCount * 2 + 3) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages: (number | "ellipsis")[] = [];
+  const push = (x: number | "ellipsis") => {
+    if (pages.length && pages[pages.length - 1] === x) return;
+    pages.push(x);
+  };
+  push(1);
+  const left = Math.max(2, current - siblingCount);
+  const right = Math.min(total - 1, current + siblingCount);
+  if (left > 2) push("ellipsis");
+  for (let i = left; i <= right; i++) push(i);
+  if (right < total - 1) push("ellipsis");
+  push(total);
+  return pages;
+}
+
+function UpgradePageStripPagination({
+  page,
+  totalPages,
+  disabled,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  disabled?: boolean;
+  onPageChange: (next: number) => void;
+}) {
+  if (totalPages < 1) return null;
+  const model = upgradePaginationModel(page, totalPages, 2);
+  const navBtn =
+    "rounded-[3px] px-1.5 py-0.5 text-sm font-bold text-cb-flame transition enabled:hover:brightness-125 disabled:opacity-35 sm:rounded-[4px] sm:px-2";
+  return (
+    <div className="mt-3 flex flex-col items-center gap-2 border-t border-cb-stroke/45 pt-3">
+      <p className="text-center text-[10px] text-zinc-500">Всего страниц: {totalPages}</p>
+      {totalPages > 1 ? (
+        <nav className="flex flex-wrap items-center justify-center gap-0.5 sm:gap-1" aria-label="Страницы">
+          <button type="button" disabled={disabled || page <= 1} onClick={() => onPageChange(page - 1)} className={navBtn} aria-label="Предыдущая страница">
+            &lt;
+          </button>
+          {model.map((item, idx) =>
+            item === "ellipsis" ? (
+              <span key={`e-${idx}`} className="px-0.5 text-[11px] text-zinc-500">
+                …
+              </span>
+            ) : (
+              <button
+                key={item}
+                type="button"
+                disabled={disabled}
+                onClick={() => onPageChange(item)}
+                className={`min-w-[1.65rem] rounded-[3px] px-1.5 py-0.5 text-[11px] tabular-nums transition sm:min-w-[1.75rem] sm:rounded-[4px] sm:px-2 sm:text-[12px] ${
+                  item === page ? "font-bold text-white" : "font-medium text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {item}
+              </button>
+            ),
+          )}
+          <button
+            type="button"
+            disabled={disabled || page >= totalPages}
+            onClick={() => onPageChange(page + 1)}
+            className={navBtn}
+            aria-label="Следующая страница"
+          >
+            &gt;
+          </button>
+        </nav>
+      ) : null}
+    </div>
+  );
 }
 
 /** Коло: дуга й цифра = fair 1/x; реальний pWin лише для кута стрілки після /run. */
@@ -200,7 +410,7 @@ function UpgradeGauge({
   const hasChance = pctClamped > 0;
 
   return (
-    <div className="relative mx-auto flex w-full max-w-[300px] flex-col items-center sm:max-w-[320px]">
+    <div className="relative mx-auto flex w-full max-w-[340px] flex-col items-center sm:max-w-[380px]">
       <div className="relative aspect-square w-full">
         {/* Повільний конусний ореол */}
         <div
@@ -330,51 +540,47 @@ function UpgradeGauge({
         </div>
       </div>
 
-      {/* Дублюємо прогрес лінійно — найкраще видно заповнення */}
-      <div className="mt-4 w-full max-w-[280px] px-0.5 sm:max-w-[300px]">
-        <div className="mb-1 text-[10px] text-zinc-500">
-          <span>Полоса 1/x (визуально)</span>
-        </div>
-        <div
-          className="relative h-4 w-full overflow-hidden rounded-full border border-cb-stroke/70 bg-zinc-950/95 shadow-inner"
-          role="progressbar"
-          aria-valuenow={Math.round(Math.min(100, Math.max(0, labelPct)) * 10) / 10}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
-          <div
-            className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-red-950 via-red-500 to-amber-400 shadow-[0_0_12px_rgba(239,68,68,0.45)] transition-[width] duration-700 ease-out"
-            style={{ width: `${arcFrac * 100}%` }}
-          >
-            {arcFrac > 0.04 ? (
-              <div
-                className="pointer-events-none absolute inset-0 opacity-90 motion-safe:animate-ug-bar-shine motion-reduce:animate-none"
-                style={{
-                  background:
-                    "linear-gradient(105deg, transparent 0%, rgba(255,255,255,0.22) 45%, transparent 90%)",
-                  width: "55%",
-                }}
-              />
-            ) : null}
-          </div>
-          {arcFrac >= 0.12 ? (
-            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold uppercase tracking-wide text-white/90 drop-shadow-md">
-              шанс
-            </span>
-          ) : null}
-        </div>
-        {hasChance ? (
-          <p className="mt-2 text-center text-[9px] leading-snug text-zinc-600">
-            Итоговая вероятность по настройкам сайта (RTP) ниже; стрелка соответствует реальному броску.
-          </p>
-        ) : null}
-      </div>
+      {hasChance ? (
+        <p className="mt-3 max-w-[min(100%,280px)] px-1 text-center text-[9px] leading-snug text-zinc-600 sm:max-w-[300px]">
+          Итоговая вероятность по настройкам сайта (RTP) ниже; стрелка соответствует реальному броску.
+        </p>
+      ) : null}
     </div>
   );
 }
 
 const panelClass =
   "rounded-2xl border border-cb-stroke/90 bg-gradient-to-br from-black/50 via-cb-panel/95 to-zinc-950 shadow-[inset_0_1px_0_rgba(255,49,49,0.08)]";
+
+/** Кнопки x2 / %% — паралелограм як на макеті; стиль = cb-panel / cb-stroke / ледве cb-flame у світлі. */
+const UPGRADE_QUICK_PICK_SKEW = "-skew-x-[8deg] transform-gpu backface-hidden";
+const UPGRADE_QUICK_PICK_UNSKEW =
+  "inline-block skew-x-[8deg] transform-gpu antialiased subpixel-antialiased";
+/** База: як панелі сайту; зовнішній shadow у neutral / accent / shuffle. */
+const UPGRADE_QUICK_PICK_SKIN =
+  "min-w-[2.85rem] select-none rounded-[3px] border border-cb-stroke/90 bg-gradient-to-b from-zinc-800/30 via-cb-panel to-[#030208] px-3.5 py-2.5 text-[12px] font-semibold leading-none tracking-tight text-zinc-100 transition-[filter,box-shadow,border-color] duration-200 hover:border-cb-flame/35 hover:brightness-[1.05] active:brightness-[0.97] disabled:pointer-events-none disabled:opacity-40 sm:min-w-[3rem] sm:rounded-[4px] sm:px-4 sm:py-2.5 sm:text-[13px]";
+
+const UPGRADE_QUICK_PICK_SHADOW_NEUTRAL =
+  "shadow-[inset_0_1px_0_rgba(255,255,255,0.07),inset_0_0_14px_-10px_rgba(255,49,49,0.12),0_2px_10px_rgba(0,0,0,0.78)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),inset_0_0_18px_-8px_rgba(255,49,49,0.16),0_4px_14px_rgba(0,0,0,0.85)]";
+
+const UPGRADE_QUICK_PICK_ACCENT: Partial<Record<string, string>> = {
+  p30:
+    "shadow-[inset_4px_0_0_0_rgba(255,49,49,0.92),inset_0_1px_0_rgba(255,255,255,0.07),inset_0_0_14px_-10px_rgba(255,49,49,0.14),0_2px_10px_rgba(0,0,0,0.78)] hover:shadow-[inset_4px_0_0_0_#ff6b6b,inset_0_1px_0_rgba(255,255,255,0.09),inset_0_0_18px_-8px_rgba(255,49,49,0.18),0_4px_14px_rgba(0,0,0,0.85)]",
+  p50:
+    "shadow-[inset_4px_0_0_0_rgba(234,179,8,0.9),inset_0_1px_0_rgba(255,255,255,0.07),inset_0_0_14px_-10px_rgba(234,179,8,0.12),0_2px_10px_rgba(0,0,0,0.78)] hover:shadow-[inset_4px_0_0_0_#fbbf24,inset_0_1px_0_rgba(255,255,255,0.09),inset_0_0_18px_-8px_rgba(250,204,21,0.16),0_4px_14px_rgba(0,0,0,0.85)]",
+  p75:
+    "shadow-[inset_4px_0_0_0_rgba(52,211,153,0.88),inset_0_1px_0_rgba(255,255,255,0.07),inset_0_0_14px_-10px_rgba(16,185,129,0.12),0_2px_10px_rgba(0,0,0,0.78)] hover:shadow-[inset_4px_0_0_0_#6ee7b7,inset_0_1px_0_rgba(255,255,255,0.09),inset_0_0_18px_-8px_rgba(52,211,153,0.16),0_4px_14px_rgba(0,0,0,0.85)]",
+};
+
+/** «Рандом» — фіолетове світіння як на референсі + легкий червоний «повітря» як у backdrop. */
+const UPGRADE_QUICK_PICK_SHUFFLE =
+  `${UPGRADE_QUICK_PICK_SKIN} ${UPGRADE_QUICK_PICK_SKEW} text-zinc-50 border-purple-500/40 bg-gradient-to-b from-purple-950/45 via-cb-panel to-[#06010c] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_22px_rgba(88,28,135,0.42),0_0_48px_rgba(255,49,49,0.07),0_2px_12px_rgba(0,0,0,0.82)] hover:border-purple-400/50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_0_30px_rgba(124,58,237,0.5),0_0_56px_rgba(255,49,49,0.1),0_4px_16px_rgba(0,0,0,0.88)]`;
+
+function upgradeQuickPickClass(kind: string): string {
+  if (kind === "shuffle") return UPGRADE_QUICK_PICK_SHUFFLE;
+  const accent = UPGRADE_QUICK_PICK_ACCENT[kind];
+  return `${UPGRADE_QUICK_PICK_SKIN} ${UPGRADE_QUICK_PICK_SKEW} ${accent ?? UPGRADE_QUICK_PICK_SHADOW_NEUTRAL}`;
+}
 
 export default function UpgradePage() {
   const [inventory, setInventory] = useState<InvItem[]>([]);
@@ -384,6 +590,7 @@ export default function UpgradePage() {
   const [targetId, setTargetId] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [spinning, setSpinning] = useState(false);
+  const [quickPickBusy, setQuickPickBusy] = useState(false);
   const [spinKey, setSpinKey] = useState(0);
   const [lastRoll, setLastRoll] = useState<number | null>(null);
   const [showResult, setShowResult] = useState<"win" | "loss" | null>(null);
@@ -393,6 +600,8 @@ export default function UpgradePage() {
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
   const [gridView, setGridView] = useState(true);
+  const [inventoryPage, setInventoryPage] = useState(1);
+  const [targetsPage, setTargetsPage] = useState(1);
   const [balanceBoostPct, setBalanceBoostPct] = useState(0);
   const [previewMeta, setPreviewMeta] = useState<{
     nominalRawPct: number;
@@ -407,6 +616,35 @@ export default function UpgradePage() {
   const [eligibleItems, setEligibleItems] = useState<CatalogItem[] | null>(null);
   const [eligibleLoading, setEligibleLoading] = useState(false);
   const eligibleFetchGen = useRef(0);
+  const prevValidTargetsLenRef = useRef(0);
+  /** Якщо true — не автопідставляти першу ціль при повторній появі пулу (користувач скасував вибір). */
+  const userClearedTargetRef = useRef(false);
+  /** Після await порівнюємо з поточним станом, без застарілого `selected` у замиканні. */
+  const selectedRef = useRef(selected);
+  const balanceBoostPctRef = useRef(balanceBoostPct);
+  selectedRef.current = selected;
+  balanceBoostPctRef.current = balanceBoostPct;
+
+  /**
+   * Токен лише після mount: на SSR `getToken()` завжди null, у клієнта одразу може бути строка —
+   * тоді `useServerEligible` змінює DOM і ламає гідратацію.
+   */
+  const [hasBrowserToken, setHasBrowserToken] = useState(false);
+  useEffect(() => {
+    const sync = () => setHasBrowserToken(Boolean(getToken()));
+    sync();
+    window.addEventListener("focus", sync);
+    return () => window.removeEventListener("focus", sync);
+  }, []);
+
+  const clearTargetSelection = useCallback(() => {
+    userClearedTargetRef.current = true;
+    setTargetId("");
+    setShowResult(null);
+    setLastRoll(null);
+    setServerPWin(null);
+    setGaugeHoldDisplayPct(null);
+  }, []);
 
   const loadAll = useCallback(async () => {
     if (!getToken()) {
@@ -458,20 +696,24 @@ export default function UpgradePage() {
 
   const stakeTotal = useMemo(() => inputSum + balanceBoostRub, [inputSum, balanceBoostRub]);
 
-  const useServerEligible = selected.size >= 1 && stakeTotal > 0 && Boolean(getToken());
+  const useServerEligible = selected.size >= 1 && stakeTotal > 0 && hasBrowserToken;
 
+  /**
+   * У режимі «Подходящие скины» пул строго з /eligible-targets (ціна + nominal gateway на сервері).
+   * Fallback каталогу по price > stake давав зайві цілі й ламав рандом / кнопки пресетів.
+   */
   const targetPool = useMemo(() => {
     if (!useServerEligible) {
       return catalog;
     }
-    if (eligibleItems !== null) {
-      return eligibleItems;
-    }
     if (eligibleLoading) {
       return [];
     }
-    return catalog.filter((t) => t.price > stakeTotal);
-  }, [catalog, eligibleItems, eligibleLoading, stakeTotal, useServerEligible]);
+    if (eligibleItems !== null) {
+      return eligibleItems;
+    }
+    return [];
+  }, [catalog, eligibleItems, eligibleLoading, useServerEligible]);
 
   const validTargets = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -485,6 +727,48 @@ export default function UpgradePage() {
       return true;
     });
   }, [targetPool, stakeTotal, search, priceMin, priceMax]);
+
+  /** Ціль заліковна для /run, якщо вона в серверному списку eligible (не лише в ум. сітці з пошуком). */
+  const targetAllowedForUpgrade = useMemo(() => {
+    if (!targetId) return false;
+    if (!useServerEligible) return validTargets.some((t) => t.id === targetId);
+    if (eligibleItems !== null) return eligibleItems.some((t) => t.id === targetId);
+    return false;
+  }, [targetId, useServerEligible, eligibleItems, validTargets]);
+
+  const pageSizePanels = gridView ? UPGRADE_PAGE_GRID : UPGRADE_PAGE_LIST;
+
+  const inventoryTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(inventory.length / pageSizePanels) || 1),
+    [inventory.length, pageSizePanels],
+  );
+  const inventoryPageClamped = Math.min(Math.max(1, inventoryPage), inventoryTotalPages);
+  const inventoryPageSlice = useMemo(() => {
+    const offset = (inventoryPageClamped - 1) * pageSizePanels;
+    return inventory.slice(offset, offset + pageSizePanels);
+  }, [inventory, inventoryPageClamped, pageSizePanels]);
+
+  const targetsTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(validTargets.length / pageSizePanels) || 1),
+    [validTargets.length, pageSizePanels],
+  );
+  const targetsPageClamped = Math.min(Math.max(1, targetsPage), targetsTotalPages);
+  const targetsPageSlice = useMemo(() => {
+    const offset = (targetsPageClamped - 1) * pageSizePanels;
+    return validTargets.slice(offset, offset + pageSizePanels);
+  }, [validTargets, targetsPageClamped, pageSizePanels]);
+
+  useEffect(() => {
+    setInventoryPage((p) => Math.min(Math.max(1, p), inventoryTotalPages));
+  }, [inventoryTotalPages]);
+
+  useEffect(() => {
+    setTargetsPage((p) => Math.min(Math.max(1, p), targetsTotalPages));
+  }, [targetsTotalPages]);
+
+  useEffect(() => {
+    setTargetsPage(1);
+  }, [search, priceMin, priceMax]);
 
   useEffect(() => {
     if (!useServerEligible) {
@@ -520,12 +804,36 @@ export default function UpgradePage() {
     return () => clearTimeout(t);
   }, [useServerEligible, selected, stakeTotal, balanceBoostPct]);
 
+  /**
+   * — Якщо цілі немає в пулі — підставити першу з пулу.
+   * — Якщо targetId порожній після кліку / хрестика — не чіпати (раніше одразу ставилась перша ціль — виглядало як баг).
+   * — Якщо пул щойно з’явився (0 → N) і цілі ще нема — як раніше, обрати першу.
+   * — Ціль можуть приховати пошук/ціна, але вона лишається, якщо є в eligible з API.
+   */
   useEffect(() => {
     if (spinning) return;
-    if (!targetId || !validTargets.some((t) => t.id === targetId)) {
-      setTargetId(validTargets[0]?.id || "");
+    const prevLen = prevValidTargetsLenRef.current;
+    const n = validTargets.length;
+    prevValidTargetsLenRef.current = n;
+
+    const inServerEligible =
+      Boolean(useServerEligible && eligibleItems !== null && targetId) &&
+      eligibleItems!.some((t) => t.id === targetId);
+
+    if (n === 0) {
+      if (targetId && !inServerEligible) setTargetId("");
+      return;
     }
-  }, [validTargets, targetId, spinning]);
+    if (targetId && !validTargets.some((t) => t.id === targetId)) {
+      if (inServerEligible) return;
+      userClearedTargetRef.current = false;
+      setTargetId(validTargets[0]?.id || "");
+      return;
+    }
+    if (prevLen === 0 && n > 0 && !targetId && !userClearedTargetRef.current) {
+      setTargetId(validTargets[0]!.id);
+    }
+  }, [validTargets, targetId, spinning, useServerEligible, eligibleItems]);
 
   const refreshPreview = useCallback(async () => {
     if (!getToken() || selected.size < 1 || !targetId) {
@@ -581,6 +889,80 @@ export default function UpgradePage() {
     return () => clearTimeout(t);
   }, [refreshPreview]);
 
+  const applyQuickPick = useCallback(
+    async (kind: "x2" | "x5" | "x10" | "p30" | "p50" | "p75" | "shuffle") => {
+      if (spinning || quickPickBusy || inputSum <= 0 || selectedRef.current.size < 1) return;
+
+      const inputIdsSnapshot = [...selectedRef.current].sort();
+      const key0 = inputIdsSnapshot.join("\0");
+      const boost0 = balanceBoostPctRef.current;
+
+      const resetPickMeta = () => {
+        setShowResult(null);
+        setLastRoll(null);
+        setServerPWin(null);
+        setGaugeHoldDisplayPct(null);
+      };
+
+      const pickFromPool = (pool: CatalogItem[], stakePick: number) => {
+        if (!pool.length || !(stakePick > 0)) return;
+        let id: string | null = null;
+        if (kind === "shuffle") id = pool[Math.floor(Math.random() * pool.length)]!.id;
+        else if (kind === "x2") id = pickTargetNearPrice(pool, stakePick, stakePick * 2);
+        else if (kind === "x5") id = pickTargetNearPrice(pool, stakePick, stakePick * 5);
+        else if (kind === "x10") id = pickTargetNearPrice(pool, stakePick, stakePick * 10);
+        else if (kind === "p30") id = pickTargetNearPrice(pool, stakePick, stakePick / 0.3);
+        else if (kind === "p50") id = pickTargetNearPrice(pool, stakePick, stakePick / 0.5);
+        else if (kind === "p75") id = pickTargetNearPrice(pool, stakePick, stakePick / 0.75);
+        if (id) {
+          userClearedTargetRef.current = false;
+          setTargetId(id);
+          resetPickMeta();
+        }
+      };
+
+      if (useServerEligible && getToken()) {
+        setQuickPickBusy(true);
+        try {
+          const r = await apiFetch<{
+            items: CatalogItem[];
+            stakeTotal?: number;
+            inputSum?: number;
+            balanceBoostRub?: number;
+          }>("/api/upgrade/eligible-targets", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              inputItemIds: inputIdsSnapshot,
+              balanceBoostPct: boost0,
+            }),
+          });
+          const idsNow = [...selectedRef.current].sort().join("\0");
+          if (idsNow !== key0 || balanceBoostPctRef.current !== boost0) return;
+          if (!r.ok || !r.data?.items?.length) return;
+          const serverStake =
+            typeof r.data.stakeTotal === "number" &&
+            Number.isFinite(r.data.stakeTotal) &&
+            r.data.stakeTotal > 0
+              ? r.data.stakeTotal
+              : stakeTotal;
+          const poolStrict = r.data.items.filter((t) => Number(t.price) > serverStake);
+          if (!poolStrict.length) return;
+          setEligibleLoading(false);
+          setEligibleItems(r.data.items);
+          pickFromPool(poolStrict, serverStake);
+        } finally {
+          setQuickPickBusy(false);
+        }
+        return;
+      }
+
+      if (!validTargets.length) return;
+      pickFromPool(validTargets, stakeTotal);
+    },
+    [spinning, quickPickBusy, inputSum, stakeTotal, useServerEligible, validTargets],
+  );
+
   function toggleSel(id: string) {
     if (spinning) return;
     const row = inventory.find((x) => x.itemId === id);
@@ -595,27 +977,6 @@ export default function UpgradePage() {
     setLastRoll(null);
     setServerPWin(null);
     setGaugeHoldDisplayPct(null);
-  }
-
-  function applyQuickPick(kind: "x2" | "x5" | "x10" | "p30" | "p50" | "p75" | "shuffle") {
-    if (spinning || inputSum <= 0) return;
-    const pool = targetPool.filter((t) => t.price > stakeTotal);
-    let id: string | null = null;
-    if (kind === "shuffle") {
-      if (pool.length) id = pool[Math.floor(Math.random() * pool.length)]!.id;
-    } else if (kind === "x2") id = pickTargetNearPrice(pool, stakeTotal, stakeTotal * 2);
-    else if (kind === "x5") id = pickTargetNearPrice(pool, stakeTotal, stakeTotal * 5);
-    else if (kind === "x10") id = pickTargetNearPrice(pool, stakeTotal, stakeTotal * 10);
-    else if (kind === "p30") id = pickTargetNearPrice(pool, stakeTotal, stakeTotal / 0.3);
-    else if (kind === "p50") id = pickTargetNearPrice(pool, stakeTotal, stakeTotal / 0.5);
-    else if (kind === "p75") id = pickTargetNearPrice(pool, stakeTotal, stakeTotal / 0.75);
-    if (id) {
-      setTargetId(id);
-      setShowResult(null);
-      setLastRoll(null);
-      setServerPWin(null);
-      setGaugeHoldDisplayPct(null);
-    }
   }
 
   async function runUpgrade() {
@@ -669,10 +1030,12 @@ export default function UpgradePage() {
         if (data.win && data.item?.itemId) {
           await loadAll();
           setSelected(new Set([data.item.itemId]));
+          userClearedTargetRef.current = true;
           setTargetId("");
           setBalanceBoostPct(0);
         } else {
           setSelected(new Set());
+          userClearedTargetRef.current = true;
           setTargetId("");
           setBalanceBoostPct(0);
           await loadAll();
@@ -692,9 +1055,6 @@ export default function UpgradePage() {
     [inventory, selected],
   );
 
-  const quickBtn =
-    "rounded-lg border border-cb-stroke/80 bg-black/40 px-2.5 py-1.5 text-[11px] font-semibold text-zinc-300 transition hover:border-cb-flame/45 hover:text-cb-flame";
-
   return (
     <SiteShell>
       <div className="min-h-[calc(100dvh-52px)] bg-transparent text-zinc-200">
@@ -704,68 +1064,125 @@ export default function UpgradePage() {
           ) : null}
 
           {/* Верх: 3 колонки */}
-          <div className="relative mb-6 rounded-2xl border border-cb-stroke/80 bg-cb-panel/80 bg-cb-mesh p-4 shadow-[0_20px_60px_rgba(0,0,0,0.45)] sm:p-5">
+          <div className="relative mb-6 rounded-2xl bg-cb-panel/80 bg-cb-mesh p-4 shadow-[0_20px_60px_rgba(0,0,0,0.45)] sm:p-5">
             <div className="grid grid-cols-1 gap-5 pt-2 xl:grid-cols-[1fr_minmax(260px,320px)_1fr] xl:items-stretch xl:gap-6">
               {/* Слева: вклад */}
-              <div className={`flex flex-col ${panelClass} p-4`}>
-                <h3 className="mb-2 text-center text-[12px] font-bold uppercase tracking-wider text-zinc-500">
-                  Выберите до 6 предметов для апгрейда
-                </h3>
-                <div className={UPGRADE_SUMMARY_BOX}>
-                  {balanceBoostRub > 0 ? (
-                    <>
-                      <div className={`${UPGRADE_SUMMARY_ROW} border-b border-zinc-800/70 pb-2`}>
-                        <span className={UPGRADE_SUMMARY_LABEL}>Предметы</span>
-                        <span className={UPGRADE_SUMMARY_VALUE}>{formatRub(inputSum)} ₽</span>
+              <div className={UPGRADE_TOP_COLUMN}>
+                <h3 className={UPGRADE_TOP_FIELD_TITLE}>Выберите до 6 предметов для апгрейда</h3>
+                <div className={UPGRADE_PREVIEW_CARD}>
+                  <div className="pointer-events-none relative z-[2] mb-1.5 shrink-0 border-b border-white/[0.06] pb-2 text-center">
+                    <p className="text-[10px] font-medium text-zinc-500">Всего в апгрейд</p>
+                    {balanceBoostRub > 0 ? (
+                      <p className="mt-1 text-[10px] text-zinc-600">
+                        Предметы {formatRubSpaced(inputSum)} ₽ · баланс +{formatRubSpaced(balanceBoostRub)} ₽
+                      </p>
+                    ) : null}
+                    <p className="mt-1 font-mono text-lg font-bold tabular-nums tracking-tight text-emerald-400 [text-shadow:0_0_20px_rgba(52,211,153,0.2)] sm:text-xl">
+                      {formatRubSpaced(stakeTotal)} ₽
+                    </p>
+                    {selected.size > 0 ? (
+                      <p className="mt-0.5 text-[10px] text-zinc-600">{selected.size} из 6 предметов</p>
+                    ) : (
+                      <p className="mt-0.5 text-[10px] text-zinc-600">до 6 предметов</p>
+                    )}
+                  </div>
+                  <div className="relative z-[1] flex min-h-0 flex-1 flex-col">
+                    {selectedItems.length === 0 ? (
+                      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-2 py-1 sm:gap-4 sm:px-3">
+                        <div
+                          className="-space-y-1.5 flex flex-col items-center text-cb-flame drop-shadow-[0_0_22px_rgba(255,49,49,0.45)]"
+                          aria-hidden
+                        >
+                          <span className="ug-stake-invite-chevron ug-stake-invite-chevron--1 text-[28px] leading-none sm:text-[34px]">
+                            ▲
+                          </span>
+                          <span className="ug-stake-invite-chevron ug-stake-invite-chevron--2 text-[24px] leading-none sm:text-[30px]">
+                            ▲
+                          </span>
+                          <span className="ug-stake-invite-chevron ug-stake-invite-chevron--3 text-[20px] leading-none sm:text-[26px]">
+                            ▲
+                          </span>
+                        </div>
+                        <p className="max-w-[260px] text-center text-[11px] leading-snug text-zinc-500 sm:text-xs">
+                          Предметы появятся здесь
+                        </p>
+                        <p className="max-w-[260px] text-center text-[10px] leading-snug text-zinc-600 sm:text-[11px]">
+                          Выберите скины в списке ниже
+                        </p>
                       </div>
-                      <div className={`${UPGRADE_SUMMARY_ROW} border-b border-zinc-800/70`}>
-                        <span className={UPGRADE_SUMMARY_LABEL}>Баланс</span>
-                        <span className={UPGRADE_SUMMARY_VALUE_MUTED}>+{formatRub(balanceBoostRub)} ₽</span>
+                    ) : (
+                      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [-webkit-overflow-scrolling:touch]">
+                        <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+                        {selectedItems.map((it) => {
+                          const rk = resolveUpgradeRarityKey(it.rarity || "common");
+                          const locked = Boolean(it.withdrawalPending);
+                          const chipRub =
+                            it.marketPriceRub != null && it.marketPriceRub > 0 ? it.marketPriceRub : it.sellPrice;
+                          return (
+                            <button
+                              key={it.itemId}
+                              type="button"
+                              title="Нажмите, чтобы убрать из взноса"
+                              disabled={spinning || locked}
+                              onClick={() => toggleSel(it.itemId)}
+                              className={`group relative aspect-square w-full min-w-0 overflow-hidden rounded-xl border text-left transition ${rarityCardSurfaceUpgradeGrid(it.rarity || "common")} ring-2 ring-cb-flame/70 ring-offset-2 ring-offset-[#0c0b0f] hover:brightness-110 disabled:pointer-events-none disabled:opacity-45`}
+                            >
+                              <div className="relative aspect-square w-full">
+                                <div
+                                  aria-hidden
+                                  className={`pointer-events-none absolute left-1/2 top-[44%] z-0 h-[60%] w-[60%] -translate-x-1/2 -translate-y-1/2 rounded-full blur-xl opacity-100 saturate-125 ${RARITY_UPGRADE_IMAGE_GLOW[rk] || RARITY_UPGRADE_IMAGE_GLOW.common}`}
+                                />
+                                {it.image ? (
+                                  <Image
+                                    src={preferHighResSteamEconomyImage(it.image) ?? it.image}
+                                    alt=""
+                                    fill
+                                    className={`z-[1] object-contain p-1 drop-shadow-[0_4px_14px_rgba(0,0,0,0.45)] ${SKIN_IMG_QUALITY_CLASS}`}
+                                    quality={100}
+                                    unoptimized
+                                  />
+                                ) : (
+                                  <div className="relative z-[1] flex h-full items-center justify-center text-[10px] text-zinc-600">
+                                    ?
+                                  </div>
+                                )}
+
+                                <div
+                                  className={`pointer-events-none absolute right-0.5 top-0.5 z-[2] scale-90 ${UPGRADE_STAKE_MINI_PRICE_WRAP}`}
+                                  aria-label={`${formatRubSpaced(chipRub)} ₽`}
+                                >
+                                  <span className={UPGRADE_STAKE_MINI_PRICE_NUM}>{formatRubSpaced(chipRub)}</span>
+                                  <span className={UPGRADE_STAKE_MINI_PRICE_SYM}>₽</span>
+                                </div>
+
+                                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex flex-col gap-0.5 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-1 pb-1 pt-4">
+                                  <p className="line-clamp-2 text-left text-[7px] font-medium leading-tight text-zinc-100 sm:text-[8px]">
+                                    {it.name}
+                                  </p>
+                                  {locked ? (
+                                    <span className="text-[6px] font-bold uppercase text-amber-400">вывод</span>
+                                  ) : null}
+                                </div>
+
+                                {!locked && (
+                                  <div className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center">
+                                    <span className={UPGRADE_SELECTED_CHECK_XS}>✓</span>
+                                    <span className={UPGRADE_SELECTED_UNCHECK_XS}>✕</span>
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                        </div>
                       </div>
-                    </>
-                  ) : null}
-                  <div
-                    className={`flex items-start justify-between gap-3 ${balanceBoostRub > 0 ? "pt-2" : ""}`}
-                  >
-                    <div className="min-w-0 pt-0.5">
-                      <div className={UPGRADE_SUMMARY_LABEL}>Всего в апгрейд</div>
-                      {selected.size > 0 ? (
-                        <p className="mt-0.5 text-[10px] text-zinc-600">{selected.size} шт.</p>
-                      ) : null}
-                    </div>
-                    <span className={`${UPGRADE_SUMMARY_VALUE} text-base sm:text-[15px]`}>
-                      {formatRub(stakeTotal)} ₽
-                    </span>
+                    )}
                   </div>
                 </div>
-                <div className="flex min-h-[160px] flex-1 flex-wrap content-center justify-center gap-2 rounded-xl border border-dashed border-cb-stroke/60 bg-black/40 p-3">
-                  {selectedItems.length === 0 ? (
-                    <div className="flex flex-col items-center gap-2 py-6 text-zinc-600">
-                      <div className="text-4xl opacity-40">⌖</div>
-                      <p className="text-center text-[11px]">Выберите предметы ниже</p>
-                    </div>
-                  ) : (
-                    selectedItems.map((it) => (
-                      <button
-                        key={it.itemId}
-                        type="button"
-                        disabled={spinning}
-                        onClick={() => toggleSel(it.itemId)}
-                        className={`relative h-16 w-[4.5rem] overflow-hidden rounded-lg border ${rarityCardSurface(it.rarity || "common")} shadow-inner disabled:pointer-events-none disabled:opacity-45`}
-                      >
-                        {it.image ? (
-                          <Image src={it.image} alt="" fill className="object-contain p-0.5" unoptimized />
-                        ) : (
-                          <span className="text-xs text-zinc-600">?</span>
-                        )}
-                      </button>
-                    ))
-                  )}
-                </div>
-                <div className="mt-4 border-t border-cb-stroke/50 pt-3">
+                <div className="mt-4 pt-2">
                   <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-zinc-500">
                     <span>Добавить баланс к шансу</span>
-                    <span className={UPGRADE_BOOST_BADGE}>{formatRub(balanceBoostRub)} ₽</span>
+                    <span className={UPGRADE_BOOST_BADGE}>{formatRubSpaced(balanceBoostRub)} ₽</span>
                   </div>
                   <input
                     type="range"
@@ -777,7 +1194,7 @@ export default function UpgradePage() {
                     className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-cb-stroke/80 accent-red-600 disabled:cursor-not-allowed disabled:opacity-45"
                   />
                   <p className="mt-1 text-[10px] text-zinc-600">
-                    Списывается с баланса при апгрейде (до {formatRub(balance)} ₽). Увеличивает шанс так же, как
+                    Списывается с баланса при апгрейде (до {formatRubSpaced(balance)} ₽). Увеличивает шанс так же, как
                     рост стоимости вклада.
                   </p>
                 </div>
@@ -810,7 +1227,11 @@ export default function UpgradePage() {
                 <button
                   type="button"
                   disabled={
-                    busy || spinning || selected.size < 1 || !targetId || !validTargets.some((t) => t.id === targetId)
+                    busy ||
+                    spinning ||
+                    selected.size < 1 ||
+                    !targetId ||
+                    !targetAllowedForUpgrade
                   }
                   onClick={() => void runUpgrade()}
                   className="group flex w-full max-w-[260px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-800 to-cb-flame py-3.5 text-[13px] font-black uppercase tracking-widest text-white shadow-[0_10px_36px_rgba(255,49,49,0.35)] transition hover:brightness-110 disabled:opacity-40"
@@ -821,41 +1242,95 @@ export default function UpgradePage() {
               </div>
 
               {/* Справа: цель */}
-              <div className={`flex flex-col ${panelClass} p-4`}>
-                <h3 className="mb-3 text-center text-[12px] font-bold uppercase tracking-wider text-zinc-500">
-                  Выберите оружие, которое хотите получить
-                </h3>
-                <div
-                  className={`flex min-h-[160px] flex-1 items-center justify-center rounded-xl border border-dashed border-cb-stroke/60 bg-gradient-to-b ${target ? rarityTint(target.rarity) : "from-cb-panel to-black/80"}`}
-                >
+              <div className={UPGRADE_TOP_COLUMN}>
+                <h3 className={UPGRADE_TOP_FIELD_TITLE}>Выберите оружие, которое хотите получить</h3>
+                <div className={UPGRADE_PREVIEW_CARD}>
                   {target ? (
-                    <div className="relative h-28 w-full max-w-[200px]">
-                      {target.image ? (
-                        <Image src={target.image} alt="" fill className="object-contain drop-shadow-lg" unoptimized />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-zinc-600">?</div>
-                      )}
-                    </div>
+                    <>
+                      <button
+                        type="button"
+                        aria-label="Снять цель"
+                        disabled={spinning}
+                        onClick={clearTargetSelection}
+                        className="absolute right-2 top-2 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-zinc-800 text-[20px] font-light leading-none text-zinc-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:bg-zinc-700 hover:text-zinc-200 disabled:pointer-events-none disabled:opacity-40"
+                      >
+                        ×
+                      </button>
+                      {(() => {
+                        const { category, title } = splitTargetDisplayName(target.name);
+                        return (
+                          <div className="pointer-events-none relative z-[2] mb-1 shrink-0 px-2 pr-10 text-center sm:px-3 sm:pr-11">
+                            {category ? (
+                              <p className="text-[10px] font-medium text-zinc-500 sm:text-[11px]">{category}</p>
+                            ) : null}
+                            <p className="mt-0.5 line-clamp-2 text-[15px] font-bold leading-snug tracking-tight text-white sm:text-[17px]">
+                              {title}
+                            </p>
+                          </div>
+                        );
+                      })()}
+                      {(() => {
+                        const previewRk = resolveUpgradeRarityKey(target.rarity);
+                        return (
+                          <div className="relative z-[1] mx-auto flex min-h-0 min-w-0 w-full max-w-[92%] flex-1 items-center justify-center">
+                            <div
+                              aria-hidden
+                              className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[150%] w-[150%] -translate-x-1/2 -translate-y-1/2 blur-[40px] motion-reduce:blur-md"
+                              style={targetPreviewAuraStyle(previewRk)}
+                            />
+                            <div
+                              aria-hidden
+                              className="pointer-events-none absolute left-1/2 top-[48%] z-0 h-[115%] w-[100%] -translate-x-1/2 -translate-y-1/2 opacity-95 motion-reduce:opacity-90"
+                              style={targetPreviewAuraStyle(previewRk)}
+                            />
+                            <div className="relative z-[1] h-full min-h-0 w-full">
+                              {target.image ? (
+                                <Image
+                                  src={preferHighResSteamEconomyImage(target.image) ?? target.image}
+                                  alt=""
+                                  fill
+                                  className={`pointer-events-none object-contain drop-shadow-[0_16px_40px_rgba(0,0,0,0.55)] ${SKIN_IMG_QUALITY_CLASS}`}
+                                  quality={100}
+                                  unoptimized
+                                />
+                              ) : (
+                                <div className="flex h-full items-center justify-center text-zinc-600">?</div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      <div className={`relative z-[2] w-full ${UPGRADE_TARGET_CARD_PRICE_ROW}`}>
+                        <span className={UPGRADE_TARGET_CARD_PRICE_NUM}>{formatRubSpaced(target.price)}</span>
+                        <span className={UPGRADE_TARGET_CARD_PRICE_CUR}>₽</span>
+                      </div>
+                    </>
                   ) : (
-                    <div className="flex flex-col items-center gap-2 py-8 text-zinc-600">
-                      <div className="text-4xl opacity-40">◇</div>
-                      <p className="text-[11px]">Цель появится здесь</p>
+                    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-2 py-1 sm:gap-4 sm:px-3">
+                      <div
+                        className="-space-y-1.5 flex flex-col items-center text-cb-flame drop-shadow-[0_0_22px_rgba(255,49,49,0.45)]"
+                        aria-hidden
+                      >
+                        <span className="ug-target-invite-chevron ug-target-invite-chevron--1 text-[28px] leading-none sm:text-[34px]">
+                          ▼
+                        </span>
+                        <span className="ug-target-invite-chevron ug-target-invite-chevron--2 text-[24px] leading-none sm:text-[30px]">
+                          ▼
+                        </span>
+                        <span className="ug-target-invite-chevron ug-target-invite-chevron--3 text-[20px] leading-none sm:text-[26px]">
+                          ▼
+                        </span>
+                      </div>
+                      <p className="max-w-[260px] text-center text-[11px] leading-snug text-zinc-500 sm:text-xs">
+                        Цель появится здесь
+                      </p>
+                      <p className="max-w-[260px] text-center text-[10px] leading-snug text-zinc-600 sm:text-[11px]">
+                        Выберите скин в списке ниже
+                      </p>
                     </div>
                   )}
                 </div>
-                {target ? (
-                  <p className="mt-2 truncate text-center text-[12px] font-medium text-white">{target.name}</p>
-                ) : null}
-                {target ? (
-                  <div className={UPGRADE_TARGET_PRICE_WRAP}>
-                    <span className={UPGRADE_TARGET_PRICE_LABEL}>Цена цели</span>
-                    <div className={UPGRADE_TARGET_PRICE_ROW}>
-                      <span className={UPGRADE_TARGET_PRICE_NUM}>{formatRub(target.price)}</span>
-                      <span className={UPGRADE_TARGET_PRICE_CUR}>₽</span>
-                    </div>
-                  </div>
-                ) : null}
-                <div className="mt-4 flex flex-wrap justify-center gap-1.5 border-t border-cb-stroke/50 pt-3">
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2 pt-2 sm:gap-2.5">
                   {(
                     [
                       ["x2", "x2"],
@@ -869,21 +1344,38 @@ export default function UpgradePage() {
                     <button
                       key={k}
                       type="button"
-                      disabled={spinning}
-                      className={`${quickBtn} disabled:pointer-events-none disabled:opacity-40`}
-                      onClick={() => applyQuickPick(k)}
+                      disabled={spinning || quickPickBusy}
+                      className={upgradeQuickPickClass(k)}
+                      onClick={() => void applyQuickPick(k)}
                     >
-                      {lab}
+                      <span className={UPGRADE_QUICK_PICK_UNSKEW}>{lab}</span>
                     </button>
                   ))}
                   <button
                     type="button"
-                    disabled={spinning}
-                    className={`${quickBtn} disabled:pointer-events-none disabled:opacity-40`}
-                    onClick={() => applyQuickPick("shuffle")}
+                    disabled={spinning || quickPickBusy}
+                    className={upgradeQuickPickClass("shuffle")}
+                    onClick={() => void applyQuickPick("shuffle")}
                     title="Случайная цель"
                   >
-                    ⧈
+                    <span className={`${UPGRADE_QUICK_PICK_UNSKEW} flex items-center justify-center`}>
+                      <svg
+                        className="size-[14px] shrink-0 sm:size-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
+                      >
+                        <path d="m18 14 4 4-4 4" />
+                        <path d="m18 2 4 4-4 4" />
+                        <path d="M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22" />
+                        <path d="M2 6h1.972a4 4 0 0 1 3.6 2.2" />
+                        <path d="M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45" />
+                      </svg>
+                    </span>
                   </button>
                 </div>
               </div>
@@ -930,11 +1422,13 @@ export default function UpgradePage() {
                   </Link>
                 </div>
               ) : gridView ? (
-                <div className="max-h-[min(42vh,440px)] overflow-y-auto overflow-x-hidden pr-1 sm:max-h-[480px]">
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {inventory.map((it) => {
+                <div className="flex min-h-0 flex-col">
+                  <div className="max-h-[min(42vh,440px)] min-h-[220px] overflow-hidden sm:min-h-[260px] sm:max-h-[480px]">
+                    <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+                      {inventoryPageSlice.map((it) => {
                       const on = selected.has(it.itemId);
                       const locked = Boolean(it.withdrawalPending);
+                      const rk = resolveUpgradeRarityKey(it.rarity || "common");
                       const chipRub =
                         it.marketPriceRub != null && it.marketPriceRub > 0
                           ? it.marketPriceRub
@@ -946,38 +1440,73 @@ export default function UpgradePage() {
                           title={locked ? "Предмет на выводе" : undefined}
                           disabled={spinning || locked}
                           onClick={() => toggleSel(it.itemId)}
-                          className={`relative overflow-hidden rounded-lg border p-1 text-left transition ${rarityCardSurface(it.rarity || "common")} ${
-                            on
-                              ? "ring-2 ring-cb-flame/60 shadow-[0_0_14px_rgba(255,49,49,0.25)]"
-                              : "hover:brightness-110"
+                          className={`group relative overflow-hidden rounded-lg border text-left transition ${rarityCardSurfaceUpgradeGrid(it.rarity || "common")} ${
+                            on ? "ring-2 ring-cb-flame/70 ring-offset-2 ring-offset-[#070708]" : "hover:brightness-110"
                           } disabled:pointer-events-none disabled:opacity-45`}
-                        >
-                          <div className="relative mx-auto mb-0.5 aspect-square w-full max-h-[4.5rem] bg-black/25">
+                        >     
+                          <div className="relative aspect-square w-full">
+                            <div
+                              aria-hidden
+                              className={`pointer-events-none absolute left-1/2 top-[44%] z-0 h-[60%] w-[60%] -translate-x-1/2 -translate-y-1/2 rounded-full blur-xl opacity-100 saturate-125 ${RARITY_UPGRADE_IMAGE_GLOW[rk] || RARITY_UPGRADE_IMAGE_GLOW.common}`}
+                            />
                             {it.image ? (
-                              <Image src={it.image} alt="" fill className="object-contain p-0.5" unoptimized />
+                              <Image
+                                src={preferHighResSteamEconomyImage(it.image) ?? it.image}
+                                alt=""
+                                fill
+                                className={`z-[1] object-contain p-1.5 drop-shadow-[0_4px_16px_rgba(0,0,0,0.5)] ${SKIN_IMG_QUALITY_CLASS}`}
+                                quality={100}
+                                unoptimized
+                              />
                             ) : (
-                              <div className="flex h-full items-center justify-center text-[10px] text-zinc-600">?</div>
+                              <div className="relative z-[1] flex h-full items-center justify-center text-[10px] text-zinc-600">
+                                ?
+                              </div>
+                            )}
+
+                            {on && !locked ? <div aria-hidden className={UPGRADE_GRID_SELECTED_OVERLAY} /> : null}
+
+                            <div
+                              className={`pointer-events-none absolute right-1 top-1 z-[2] ${UPGRADE_SKIN_PRICE_TAG_GRID}`}
+                              aria-label={`${formatRubSpaced(chipRub)} ₽`}
+                            >
+                              <span className={UPGRADE_SKIN_PRICE_NUM}>{formatRubSpaced(chipRub)}</span>
+                              <span className={UPGRADE_SKIN_PRICE_SYM}>₽</span>
+                            </div>
+
+                            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex flex-col gap-0.5 px-1.5 pb-1.5 pt-3">
+                              <p className="line-clamp-2 text-[8px] font-medium leading-tight text-zinc-100 sm:text-[9px]">
+                                {it.name}
+                              </p>
+                              {locked ? (
+                                <span className="text-[7px] font-bold uppercase text-amber-400">вывод</span>
+                              ) : null}
+                            </div>
+
+                            {on && !locked && (
+                              <div className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center">
+                                <span className={UPGRADE_SELECTED_CHECK}>✓</span>
+                                <span className={UPGRADE_SELECTED_UNCHECK}>✕</span>
+                              </div>
                             )}
                           </div>
-                          <p className="line-clamp-2 text-[8px] font-medium leading-tight text-zinc-100 sm:text-[9px]">
-                            {it.name}
-                          </p>
-                          <span className={UPGRADE_PRICE_CHIP}>
-                            {formatRub(chipRub)} ₽
-                          </span>
-                          {locked ? (
-                            <span className="mt-0.5 block text-center text-[7px] font-bold uppercase text-amber-500/90">
-                              вывод
-                            </span>
-                          ) : null}
                         </button>
                       );
-                    })}
+                      })}
+                    </div>
                   </div>
+                  <UpgradePageStripPagination
+                    page={inventoryPageClamped}
+                    totalPages={inventoryTotalPages}
+                    disabled={spinning}
+                    onPageChange={setInventoryPage}
+                  />
                 </div>
               ) : (
-                <div className="max-h-[min(42vh,440px)] space-y-1 overflow-y-auto overflow-x-hidden pr-1 sm:max-h-[480px]">
-                  {inventory.map((it) => {
+                <div className="flex min-h-0 flex-col">
+                  <div className="max-h-[min(42vh,440px)] min-h-[260px] overflow-hidden sm:min-h-[300px] sm:max-h-[480px]">
+                    <div className="space-y-1">
+                      {inventoryPageSlice.map((it) => {
                     const on = selected.has(it.itemId);
                     const locked = Boolean(it.withdrawalPending);
                     const chipRub =
@@ -991,20 +1520,38 @@ export default function UpgradePage() {
                         title={locked ? "Предмет на выводе" : undefined}
                         disabled={spinning || locked}
                         onClick={() => toggleSel(it.itemId)}
-                        className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${rarityCardSurface(it.rarity || "common")} ${
+                        className={`group flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${rarityCardSurface(it.rarity || "common")} ${
                           on ? "ring-2 ring-cb-flame/55 shadow-[0_0_12px_rgba(255,49,49,0.2)]" : "hover:brightness-105"
                         } disabled:pointer-events-none disabled:opacity-45`}
                       >
-                        <div className="relative h-12 w-14 shrink-0 bg-black/25">
+                        <div className="relative h-12 w-14 shrink-0 overflow-hidden rounded-md bg-black/25">
                           {it.image ? (
-                            <Image src={it.image} alt="" fill className="object-contain p-0.5" unoptimized />
+                            <Image
+                              src={preferHighResSteamEconomyImage(it.image) ?? it.image}
+                              alt=""
+                              fill
+                              className={`relative z-0 object-contain p-0.5 ${SKIN_IMG_QUALITY_CLASS}`}
+                              quality={100}
+                              unoptimized
+                            />
                           ) : null}
+                          {on && !locked ? <div aria-hidden className={UPGRADE_GRID_SELECTED_OVERLAY} /> : null}
+
+                          {on && !locked && (
+                            <div className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center">
+                              <span className={UPGRADE_SELECTED_CHECK_SM}>✓</span>
+                              <span className={UPGRADE_SELECTED_UNCHECK_SM}>✕</span>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <p className="truncate text-[11px] text-zinc-100">{it.name}</p>
-                          <span className={UPGRADE_PRICE_CHIP_INLINE}>
-                            {formatRub(chipRub)} ₽
-                          </span>
+                        <div className="flex min-w-0 flex-1 flex-col gap-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="min-w-0 flex-1 truncate text-[11px] text-zinc-100">{it.name}</p>
+                            <span className={`shrink-0 ${UPGRADE_SKIN_PRICE_TAG_ROW}`}>
+                              <span className={UPGRADE_SKIN_PRICE_NUM_ROW}>{formatRubSpaced(chipRub)}</span>
+                              <span className={UPGRADE_SKIN_PRICE_SYM_ROW}>₽</span>
+                            </span>
+                          </div>
                           {locked ? (
                             <span className="text-[8px] font-bold uppercase text-amber-500/90">
                               на выводе
@@ -1013,7 +1560,15 @@ export default function UpgradePage() {
                         </div>
                       </button>
                     );
-                  })}
+                      })}
+                    </div>
+                  </div>
+                  <UpgradePageStripPagination
+                    page={inventoryPageClamped}
+                    totalPages={inventoryTotalPages}
+                    disabled={spinning}
+                    onPageChange={setInventoryPage}
+                  />
                 </div>
               )}
             </div>
@@ -1089,7 +1644,8 @@ export default function UpgradePage() {
                   </div>
                 </div>
               </div>
-              <div className="max-h-[min(42vh,440px)] flex-1 overflow-y-auto overflow-x-hidden rounded-xl border border-cb-stroke/70 bg-black/35 p-2 sm:max-h-[480px]">
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="max-h-[min(42vh,440px)] min-h-[220px] flex-1 overflow-hidden rounded-xl border border-cb-stroke/70 bg-black/35 p-2 sm:min-h-[260px] sm:max-h-[480px]">
                 {validTargets.length === 0 ? (
                   <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
                     {eligibleLoading && useServerEligible ? (
@@ -1118,78 +1674,155 @@ export default function UpgradePage() {
                     )}
                   </div>
                 ) : gridView ? (
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {validTargets.slice(0, 100).map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        disabled={spinning}
-                        onClick={() => {
-                          setTargetId(t.id);
-                          setShowResult(null);
-                          setLastRoll(null);
-                          setServerPWin(null);
-                          setGaugeHoldDisplayPct(null);
-                        }}
-                        className={`relative overflow-hidden rounded-lg border p-1 text-left transition ${rarityCardSurface(t.rarity)} ${
-                          targetId === t.id
-                            ? "ring-2 ring-cb-flame/60 shadow-[0_0_14px_rgba(255,49,49,0.25)]"
-                            : "hover:brightness-110"
-                        } disabled:pointer-events-none disabled:opacity-45`}
-                      >
-                        <div className="relative mx-auto mb-0.5 aspect-square w-full max-h-[4.5rem] bg-black/25">
-                          {t.image ? (
-                            <Image src={t.image} alt="" fill className="object-contain p-0.5" unoptimized />
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-[10px] text-zinc-600">?</div>
-                          )}
-                        </div>
-                        <p className="line-clamp-2 text-[8px] font-medium leading-tight text-zinc-100 sm:text-[9px]">
-                          {t.name}
-                        </p>
-                        <span className={UPGRADE_PRICE_CHIP}>
-                          {formatRub(t.price)} ₽
-                        </span>
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+                    {targetsPageSlice.map((t) => {
+                      const selected = targetId === t.id;
+                      const rk = resolveUpgradeRarityKey(t.rarity);
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          disabled={spinning}
+                          onClick={() => {
+                            const nextId = selected ? "" : t.id;
+                            userClearedTargetRef.current = nextId === "";
+                            setTargetId(nextId);
+                            setShowResult(null);
+                            setLastRoll(null);
+                            setServerPWin(null);
+                            setGaugeHoldDisplayPct(null);
+                          }}
+                          className={`group relative overflow-hidden rounded-lg border text-left transition ${rarityCardSurfaceUpgradeGrid(t.rarity)} ${
+                            selected
+                              ? "ring-2 ring-cb-flame/70 ring-offset-2 ring-offset-[#070708]"
+                              : "hover:brightness-110"
+                          } disabled:pointer-events-none disabled:opacity-45`}
+                        >
+                          <div className="relative aspect-square w-full">
+                            <div
+                              aria-hidden
+                              className={`pointer-events-none absolute left-1/2 top-[44%] z-0 h-[60%] w-[60%] -translate-x-1/2 -translate-y-1/2 rounded-full blur-xl opacity-100 saturate-125 ${RARITY_UPGRADE_IMAGE_GLOW[rk] || RARITY_UPGRADE_IMAGE_GLOW.common}`}
+                            />
+                            {t.image ? (
+                              <Image
+                                src={preferHighResSteamEconomyImage(t.image) ?? t.image}
+                                alt=""
+                                fill
+                                className={`pointer-events-none z-[1] object-contain p-1.5 drop-shadow-[0_4px_16px_rgba(0,0,0,0.5)] ${SKIN_IMG_QUALITY_CLASS}`}
+                                quality={100}
+                                unoptimized
+                              />
+                            ) : (
+                              <div className="pointer-events-none relative z-[1] flex h-full items-center justify-center text-[10px] text-zinc-600">
+                                ?
+                              </div>
+                            )}
+
+                            {selected ? <div aria-hidden className={UPGRADE_GRID_SELECTED_OVERLAY} /> : null}
+
+                            <div
+                              className={`pointer-events-none absolute right-1 top-1 z-[2] ${UPGRADE_SKIN_PRICE_TAG_GRID}`}
+                              aria-label={`${formatRubSpaced(t.price)} ₽`}
+                            >
+                              <span className={UPGRADE_SKIN_PRICE_NUM}>{formatRubSpaced(t.price)}</span>
+                              <span className={UPGRADE_SKIN_PRICE_SYM}>₽</span>
+                            </div>
+
+                            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex flex-col gap-0.5 px-1.5 pb-1.5 pt-3">
+                              <p className="line-clamp-2 text-[8px] font-medium leading-tight text-zinc-100 sm:text-[9px]">
+                                {t.name}
+                              </p>
+                            </div>
+
+                            {selected && (
+                              <div className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center">
+                                <span className={UPGRADE_SELECTED_CHECK} aria-hidden>
+                                  ✓
+                                </span>
+                                <span className={UPGRADE_SELECTED_UNCHECK} aria-hidden>
+                                  ✕
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {validTargets.slice(0, 100).map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        disabled={spinning}
-                        onClick={() => {
-                          setTargetId(t.id);
-                          setShowResult(null);
-                          setLastRoll(null);
-                          setServerPWin(null);
-                          setGaugeHoldDisplayPct(null);
-                        }}
-                        className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${rarityCardSurface(t.rarity)} ${
-                          targetId === t.id
-                            ? "ring-2 ring-cb-flame/55 shadow-[0_0_12px_rgba(255,49,49,0.2)]"
-                            : "hover:brightness-105"
-                        } disabled:pointer-events-none disabled:opacity-45`}
-                      >
-                        <div className="relative h-12 w-14 shrink-0 bg-black/25">
-                          {t.image ? (
-                            <Image src={t.image} alt="" fill className="object-contain p-0.5" unoptimized />
-                          ) : (
-                            <span className="flex h-full items-center justify-center text-[10px] text-zinc-600">?</span>
-                          )}
-                        </div>
-                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <p className="truncate text-[11px] font-medium text-zinc-100">{t.name}</p>
-                          <span className={UPGRADE_PRICE_CHIP_INLINE}>
-                            {formatRub(t.price)} ₽
-                          </span>
-                        </div>
-                      </button>
-                    ))}
+                    {targetsPageSlice.map((t) => {
+                      const selected = targetId === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          disabled={spinning}
+                          onClick={() => {
+                            const nextId = selected ? "" : t.id;
+                            userClearedTargetRef.current = nextId === "";
+                            setTargetId(nextId);
+                            setShowResult(null);
+                            setLastRoll(null);
+                            setServerPWin(null);
+                            setGaugeHoldDisplayPct(null);
+                          }}
+                          className={`group flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${rarityCardSurface(t.rarity)} ${
+                            selected
+                              ? "ring-2 ring-cb-flame/55 shadow-[0_0_12px_rgba(255,49,49,0.2)]"
+                              : "hover:brightness-105"
+                          } disabled:pointer-events-none disabled:opacity-45`}
+                        >
+                          <div className="relative h-12 w-14 shrink-0 overflow-hidden rounded-md bg-black/25">
+                            {t.image ? (
+                              <Image
+                                src={preferHighResSteamEconomyImage(t.image) ?? t.image}
+                                alt=""
+                                fill
+                                className={`relative z-0 object-contain p-0.5 ${SKIN_IMG_QUALITY_CLASS}`}
+                                quality={100}
+                                unoptimized
+                              />
+                            ) : (
+                              <span className="relative z-0 flex h-full items-center justify-center text-[10px] text-zinc-600">
+                                ?
+                              </span>
+                            )}
+
+                            {selected ? <div aria-hidden className={UPGRADE_GRID_SELECTED_OVERLAY} /> : null}
+
+                            {selected && (
+                              <div className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center">
+                                <span className={UPGRADE_SELECTED_CHECK_SM}>✓</span>
+                                <span className={UPGRADE_SELECTED_UNCHECK_SM}>✕</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="min-w-0 flex-1 truncate text-[11px] font-medium text-zinc-100">
+                                {t.name}
+                              </p>
+                              <span className={`shrink-0 ${UPGRADE_SKIN_PRICE_TAG_ROW}`}>
+                                <span className={UPGRADE_SKIN_PRICE_NUM_ROW}>{formatRubSpaced(t.price)}</span>
+                                <span className={UPGRADE_SKIN_PRICE_SYM_ROW}>₽</span>
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
+                </div>
+                {validTargets.length > 0 ? (
+                  <UpgradePageStripPagination
+                    page={targetsPageClamped}
+                    totalPages={targetsTotalPages}
+                    disabled={spinning || eligibleLoading}
+                    onPageChange={setTargetsPage}
+                  />
+                ) : null}
               </div>
             </div>
           </div>

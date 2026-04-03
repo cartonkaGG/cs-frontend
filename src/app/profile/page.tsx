@@ -9,6 +9,7 @@ import { SiteShell } from "@/components/SiteShell";
 import { apiFetch, clearToken, getToken } from "@/lib/api";
 import { requestAuthModal } from "@/lib/authModal";
 import { formatRub } from "@/lib/money";
+import { preferHighResSteamEconomyImage, SKIN_IMG_QUALITY_CLASS } from "@/lib/steamImage";
 
 function splitItemName(item: string): { weapon: string; skin: string } {
   const t = item.trim();
@@ -646,10 +647,15 @@ export default function ProfilePage() {
                               }`}
                             >
                               <Image
-                                src={bestDrop.image || "/logo.svg"}
+                                src={
+                                  bestDrop.image
+                                    ? (preferHighResSteamEconomyImage(bestDrop.image) ?? bestDrop.image)
+                                    : "/logo.svg"
+                                }
                                 alt=""
                                 fill
-                                className="object-contain p-2"
+                                className={`object-contain p-2 ${bestDrop.image ? SKIN_IMG_QUALITY_CLASS : ""}`}
+                                quality={100}
                                 unoptimized
                               />
                             </div>
@@ -794,11 +800,12 @@ export default function ProfilePage() {
                                 <div className="relative mx-auto mt-1 aspect-square w-[88%] max-w-[9.5rem]">
                                   {it.image ? (
                                     <Image
-                                      src={it.image}
+                                      src={preferHighResSteamEconomyImage(it.image) ?? it.image}
                                       alt=""
                                       fill
-                                      className="object-contain p-1"
+                                      className={`object-contain p-1 ${SKIN_IMG_QUALITY_CLASS}`}
                                       sizes="(max-width: 640px) 45vw, 140px"
+                                      quality={100}
                                       unoptimized
                                     />
                                   ) : (

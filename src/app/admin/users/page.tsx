@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { formatRub } from "@/lib/money";
+import { preferHighResSteamEconomyImage, SKIN_IMG_QUALITY_CLASS } from "@/lib/steamImage";
 
 type InventoryItem = {
   itemId: string;
@@ -518,10 +519,20 @@ export default function AdminUsersPage() {
                   }`}
                 >
                   <Image
-                    src={data.user.bestItem.image || "/logo.svg"}
+                    src={
+                      data.user.bestItem.image
+                        ? (preferHighResSteamEconomyImage(data.user.bestItem.image) ??
+                          data.user.bestItem.image)
+                        : "/logo.svg"
+                    }
                     alt=""
                     fill
-                    className="object-cover"
+                    className={
+                      data.user.bestItem.image
+                        ? `object-cover ${SKIN_IMG_QUALITY_CLASS}`
+                        : "object-cover"
+                    }
+                    quality={100}
                     unoptimized
                   />
                 </div>
@@ -543,10 +554,15 @@ export default function AdminUsersPage() {
                     <div className="flex items-center gap-3">
                       <div className="relative h-12 w-12 overflow-hidden rounded-lg bg-black/30 ring-1 ring-cb-stroke/60">
                         <Image
-                          src={it.image || "/logo.svg"}
+                          src={
+                            it.image
+                              ? (preferHighResSteamEconomyImage(it.image) ?? it.image)
+                              : "/logo.svg"
+                          }
                           alt=""
                           fill
-                          className="object-cover"
+                          className={it.image ? `object-cover ${SKIN_IMG_QUALITY_CLASS}` : "object-cover"}
+                          quality={100}
                           unoptimized
                         />
                       </div>

@@ -107,7 +107,7 @@ export function CaseCard({
   const caseS = casePct / 100;
   const skinS = skinPct / 100;
 
-  const caseSrc = c.image ? preferHighResSteamEconomyImage(c.image) ?? c.image : null;
+  const caseSrc = c.image ? preferHighResSteamEconomyImage(c.image, "compat") ?? c.image : null;
   const skinSrc = c.skinImage ? preferHighResSteamEconomyImage(c.skinImage) ?? c.skinImage : null;
   const [nr, ng, nb] = rgbForAccent(c.accent);
   /** Неон як у задній підсвітці кейса (той самий accent). */
