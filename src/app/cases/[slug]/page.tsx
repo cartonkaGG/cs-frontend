@@ -19,6 +19,7 @@ import { apiFetch, getToken } from "@/lib/api";
 import { requestAuthModal } from "@/lib/authModal";
 import { sortLootGoldToGray } from "@/lib/caseLootSort";
 import { preferHighResSteamEconomyImage, SKIN_IMG_QUALITY_CLASS } from "@/lib/steamImage";
+import { primeRouletteAudio } from "@/lib/rouletteSound";
 
 type CaseDisplayOdds = {
   items: Array<{ name: string; rarity: string; sellPrice: number; chancePct: number }>;
@@ -354,6 +355,7 @@ export default function CaseOpenPage() {
         requestAuthModal(`/cases/${slug}?open=1`);
         return;
       }
+      primeRouletteAudio();
       const n = openMultiplier;
       if (n < 2) return;
 
@@ -430,6 +432,7 @@ export default function CaseOpenPage() {
       requestAuthModal(`/cases/${slug}?open=1`);
       return;
     }
+    primeRouletteAudio();
     if (openMultiplier > 1) {
       await openBatch();
       return;
@@ -476,6 +479,7 @@ export default function CaseOpenPage() {
       requestAuthModal(`/cases/${slug}?open=1`);
       return;
     }
+    primeRouletteAudio();
     if (openMultiplier > 1) {
       await openBatchFast();
       return;

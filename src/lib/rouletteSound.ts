@@ -1,4 +1,27 @@
-const LS_KEY = "cd-roulette-sound-muted";
+export const ROULETTE_SOUND_MUTED_LS_KEY = "cd-roulette-sound-muted";
+const LS_KEY = ROULETTE_SOUND_MUTED_LS_KEY;
+
+let sharedAudioContext: AudioContext | null = null;
+
+function getSharedAudioContext(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  const AC =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  if (!AC) return null;
+  if (sharedAudioContext?.state === "closed") sharedAudioContext = null;
+  if (!sharedAudioContext) sharedAudioContext = new AC();
+  return sharedAudioContext;
+}
+
+/**
+ * Викликати синхронно з обробника кліку (до await). Інакше після мережевого запиту
+ * браузер не вважає подію «user gesture» і Web Audio лишається suspended без звуку.
+ */
+export function primeRouletteAudio(): void {
+  const ctx = getSharedAudioContext();
+  if (ctx) void ctx.resume().catch(() => {});
+}
 
 export function getRouletteSoundMuted(): boolean {
   if (typeof window === "undefined") return false;
@@ -40,6 +63,7 @@ function playRouletteClack(ctx: AudioContext, intensity: number) {
 
 /**
  * Звук прокрутки «рулетки»: кроки уповільнюються до зупинки (як колесо з перешкодами).
+ * Використовує спільний AudioContext (не закриває його) — сумісно з async після кліку.
  */
 export function startRouletteSpinTicks(
   durationMs: number,
@@ -47,54 +71,53 @@ export function startRouletteSpinTicks(
 ): () => void {
   if (muted || typeof window === "undefined") return () => {};
 
-  const AC =
-    window.AudioContext ||
-    (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-  if (!AC) return () => {};
+  const ctx = getSharedAudioContext();
+  if (!ctx) return () => {};
 
-  const ctx = new AC();
   let closed = false;
-  let tickId = 0;
-  const startWall = performance.now();
-
-  void ctx.resume().catch(() => {});
+  let tickId: ReturnType<typeof setTimeout> | undefined;
+  let safetyTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
   const finish = () => {
     if (closed) return;
     closed = true;
-    window.clearTimeout(tickId);
-    ctx.close().catch(() => {});
+    if (tickId !== undefined) window.clearTimeout(tickId);
+    if (safetyTimeoutId !== undefined) clearTimeout(safetyTimeoutId);
   };
 
-  /** Плануємо лише тики звуку, без RAF на кожен кадр — менше навантаження під час рулетки */
-  const scheduleClack = () => {
+  const begin = () => {
     if (closed) return;
-    const elapsed = performance.now() - startWall;
-    const progress = Math.min(1, elapsed / durationMs);
+    const startWall = performance.now();
 
-    if (elapsed >= durationMs) {
-      playRouletteClack(ctx, 1);
-      finish();
-      return;
-    }
+    const scheduleClack = () => {
+      if (closed) return;
+      const elapsed = performance.now() - startWall;
+      const progress = Math.min(1, elapsed / durationMs);
 
-    const slow = progress * progress;
-    playRouletteClack(ctx, 0.55 + 0.45 * (1 - slow * 0.35));
-    const gapMs = 38 + slow * 195 + Math.random() * 12;
-    tickId = window.setTimeout(scheduleClack, gapMs);
+      if (elapsed >= durationMs) {
+        playRouletteClack(ctx, 1);
+        finish();
+        return;
+      }
+
+      const slow = progress * progress;
+      playRouletteClack(ctx, 0.55 + 0.45 * (1 - slow * 0.35));
+      const gapMs = 38 + slow * 195 + Math.random() * 12;
+      tickId = window.setTimeout(scheduleClack, gapMs);
+    };
+
+    tickId = window.setTimeout(scheduleClack, 0);
+    safetyTimeoutId = setTimeout(finish, durationMs + 200);
   };
 
-  tickId = window.setTimeout(scheduleClack, 0);
-
-  const safetyTimeoutId = setTimeout(finish, durationMs + 200);
+  void ctx.resume().then(() => {
+    if (!closed) begin();
+  });
 
   return () => {
-    window.clearTimeout(tickId);
-    clearTimeout(safetyTimeoutId);
-    if (!closed) {
-      closed = true;
-      ctx.close().catch(() => {});
-    }
+    if (tickId !== undefined) window.clearTimeout(tickId);
+    if (safetyTimeoutId !== undefined) clearTimeout(safetyTimeoutId);
+    closed = true;
   };
 }
 
@@ -102,30 +125,23 @@ export function startRouletteSpinTicks(
 export function playUpgradeChipClick(muted: boolean): void {
   if (muted || typeof window === "undefined") return;
 
-  const AC =
-    window.AudioContext ||
-    (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-  if (!AC) return;
+  const ctx = getSharedAudioContext();
+  if (!ctx) return;
 
-  const ctx = new AC();
-  void ctx.resume().catch(() => {});
+  void ctx.resume().then(() => {
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(520 + Math.random() * 40, t);
+    o.frequency.exponentialRampToValueAtTime(280, t + 0.045);
 
-  const t = ctx.currentTime;
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-  o.type = "triangle";
-  o.frequency.setValueAtTime(520 + Math.random() * 40, t);
-  o.frequency.exponentialRampToValueAtTime(280, t + 0.045);
+    g.gain.setValueAtTime(0.035, t);
+    g.gain.exponentialRampToValueAtTime(0.0012, t + 0.055);
 
-  g.gain.setValueAtTime(0.035, t);
-  g.gain.exponentialRampToValueAtTime(0.0012, t + 0.055);
-
-  o.connect(g);
-  g.connect(ctx.destination);
-  o.start(t);
-  o.stop(t + 0.06);
-
-  window.setTimeout(() => {
-    ctx.close().catch(() => {});
-  }, 140);
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start(t);
+    o.stop(t + 0.06);
+  });
 }

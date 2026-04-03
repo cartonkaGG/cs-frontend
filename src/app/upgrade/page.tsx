@@ -22,6 +22,9 @@ import { peekUpgradeBootstrapCache, writeUpgradeBootstrapCache } from "@/lib/upg
 import {
   getRouletteSoundMuted,
   playUpgradeChipClick,
+  primeRouletteAudio,
+  ROULETTE_SOUND_MUTED_LS_KEY,
+  setRouletteSoundMuted,
   startRouletteSpinTicks,
 } from "@/lib/rouletteSound";
 
@@ -47,7 +50,7 @@ type CatalogItem = {
 /** Верхня колонка без зовнішньої «картки» — лише контент (внутрішні блоки в стилі сайту). */
 const UPGRADE_TOP_COLUMN = "flex min-h-0 flex-col";
 const UPGRADE_TOP_FIELD_TITLE =
-  "mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500";
+  "text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500";
 /** Спільна квадратна картка прев’ю (взнос і ціль — той самий розмір). */
 const UPGRADE_PREVIEW_CARD =
   "relative mx-auto flex aspect-square w-full max-w-[min(100%,340px)] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl bg-[#0c0b0f] px-3 py-3 shadow-[0_12px_48px_rgba(0,0,0,0.65)] sm:max-w-[min(100%,400px)] sm:rounded-[1.25rem] sm:px-4 sm:py-4";
@@ -633,11 +636,26 @@ export default function UpgradePage() {
    * тоді `useServerEligible` змінює DOM і ламає гідратацію.
    */
   const [hasBrowserToken, setHasBrowserToken] = useState(false);
+  const [soundMuted, setSoundMuted] = useState(false);
   useEffect(() => {
     const sync = () => setHasBrowserToken(Boolean(getToken()));
     sync();
     window.addEventListener("focus", sync);
     return () => window.removeEventListener("focus", sync);
+  }, []);
+
+  useEffect(() => {
+    const syncMuted = () => setSoundMuted(getRouletteSoundMuted());
+    syncMuted();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === ROULETTE_SOUND_MUTED_LS_KEY || e.key === null) syncMuted();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", syncMuted);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", syncMuted);
+    };
   }, []);
 
   const clearTargetSelection = useCallback(() => {
@@ -1002,6 +1020,7 @@ export default function UpgradePage() {
       requestAuthModal("/upgrade");
       return;
     }
+    primeRouletteAudio();
     setErr(null);
     setBusy(true);
     setShowResult(null);
@@ -1091,7 +1110,27 @@ export default function UpgradePage() {
             <div className="grid grid-cols-1 gap-5 pt-2 xl:grid-cols-[1fr_minmax(260px,320px)_1fr] xl:items-stretch xl:gap-6">
               {/* Слева: вклад */}
               <div className={UPGRADE_TOP_COLUMN}>
-                <h3 className={UPGRADE_TOP_FIELD_TITLE}>Выберите до 6 предметов для апгрейда</h3>
+                <div className="mb-3 flex w-full items-center gap-2 sm:gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !soundMuted;
+                      setSoundMuted(next);
+                      setRouletteSoundMuted(next);
+                    }}
+                    className="order-first shrink-0 rounded-lg border border-cb-stroke/70 bg-[#0a0e14]/90 p-2 text-zinc-400 shadow-md transition hover:border-zinc-600 hover:text-zinc-200 sm:p-2.5"
+                    title={soundMuted ? "Включить звук рулетки" : "Выключить звук рулетки"}
+                    aria-pressed={!soundMuted}
+                    aria-label={soundMuted ? "Включить звук" : "Выключить звук"}
+                  >
+                    <span className="block text-base leading-none sm:text-lg" aria-hidden>
+                      {soundMuted ? "🔇" : "🔊"}
+                    </span>
+                  </button>
+                  <h3 className={`min-w-0 flex-1 ${UPGRADE_TOP_FIELD_TITLE}`}>
+                    Выберите до 6 предметов для апгрейда
+                  </h3>
+                </div>
                 <div className={UPGRADE_PREVIEW_CARD}>
                   <div className="pointer-events-none relative z-[2] mb-1.5 shrink-0 border-b border-white/[0.06] pb-2 text-center">
                     <p className="text-[10px] font-medium text-zinc-500">Всего в апгрейд</p>
@@ -1238,7 +1277,7 @@ export default function UpgradePage() {
               </div>
 
               {/* Центр: индикатор + кнопка */}
-              <div className="flex flex-col items-center justify-center gap-3">
+              <div className="flex w-full max-w-[320px] flex-col items-center justify-center gap-3 xl:max-w-none">
                 {fairArcPct <= 0 && gaugeHoldDisplayPct == null ? (
                   <p className="text-center text-[11px] text-zinc-500">Выберите предметы и цель</p>
                 ) : previewMeta?.cappedChance && gaugeHoldDisplayPct == null ? (
@@ -1280,7 +1319,7 @@ export default function UpgradePage() {
 
               {/* Справа: цель */}
               <div className={UPGRADE_TOP_COLUMN}>
-                <h3 className={UPGRADE_TOP_FIELD_TITLE}>Выберите оружие, которое хотите получить</h3>
+                <h3 className={`mb-3 ${UPGRADE_TOP_FIELD_TITLE}`}>Выберите оружие, которое хотите получить</h3>
                 <div className={UPGRADE_PREVIEW_CARD}>
                   {target ? (
                     <>
