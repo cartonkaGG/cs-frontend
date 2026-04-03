@@ -17,6 +17,7 @@ import { apiFetch, getToken } from "@/lib/api";
 import { formatRubSpaced } from "@/lib/money";
 import { preferHighResSteamEconomyImage, SKIN_IMG_QUALITY_CLASS } from "@/lib/steamImage";
 import { requestAuthModal } from "@/lib/authModal";
+import { peekUpgradeBootstrapCache, writeUpgradeBootstrapCache } from "@/lib/upgradePrefetch";
 
 type InvItem = {
   itemId: string;
@@ -652,6 +653,12 @@ export default function UpgradePage() {
       setBalance(0);
       return;
     }
+    const warm = peekUpgradeBootstrapCache();
+    if (warm) {
+      setInventory(warm.inventory as InvItem[]);
+      setBalance(warm.balance);
+      setCatalog(warm.catalog as CatalogItem[]);
+    }
     const [meR, catR] = await Promise.all([
       apiFetch<{ inventory: InvItem[]; balance: number }>("/api/me"),
       apiFetch<{ items: CatalogItem[] }>("/api/upgrade/catalog"),
@@ -661,6 +668,13 @@ export default function UpgradePage() {
       setBalance(Number(meR.data.balance) || 0);
     }
     if (catR.ok && catR.data?.items) setCatalog(catR.data.items);
+    if (meR.ok && meR.data && catR.ok && catR.data?.items) {
+      writeUpgradeBootstrapCache({
+        inventory: Array.isArray(meR.data.inventory) ? meR.data.inventory : [],
+        balance: Number(meR.data.balance) || 0,
+        catalog: catR.data.items,
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -800,7 +814,7 @@ export default function UpgradePage() {
           setEligibleItems(null);
         }
       })();
-    }, 320);
+    }, 100);
     return () => clearTimeout(t);
   }, [useServerEligible, selected, stakeTotal, balanceBoostPct]);
 

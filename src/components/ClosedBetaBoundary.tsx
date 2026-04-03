@@ -62,10 +62,13 @@ export function ClosedBetaBoundary({ children }: { children: React.ReactNode }) 
   const [applyNote, setApplyNote] = useState("");
   const [applyBusy, setApplyBusy] = useState(false);
   const [applyErr, setApplyErr] = useState<string | null>(null);
+  /** Лише після mount: на SSR/localStorage немає — інакше гідратація не збігається з клієнтом із токеном */
+  const [hasBrowserToken, setHasBrowserToken] = useState(false);
 
   const refresh = useCallback(async () => {
     setApplyErr(null);
-    setView(() => (envClosedBetaFlag() ? "beta" : "loading"));
+    // Не скидати view у loading/beta на початку — інакше при кожній зміні pathname
+    // повний екран «Загрузка» перекриває сайт (сильні лаги/микання).
     try {
       const on = await fetchPublicClosedBeta();
       if (on === null) {
@@ -103,6 +106,20 @@ export function ClosedBetaBoundary({ children }: { children: React.ReactNode }) 
       setSession(null);
       setView(envClosedBetaFlag() ? "beta" : "site");
     }
+  }, []);
+
+  useEffect(() => {
+    const syncToken = () => setHasBrowserToken(Boolean(getToken()));
+    syncToken();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "cd_token" || e.key === null) syncToken();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", syncToken);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", syncToken);
+    };
   }, []);
 
   useEffect(() => {
@@ -149,7 +166,7 @@ export function ClosedBetaBoundary({ children }: { children: React.ReactNode }) 
     );
   }
 
-  if (view === "sessionErr" && getToken()) {
+  if (view === "sessionErr" && hasBrowserToken) {
     return (
       <GateScrim>
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 text-center text-zinc-300">
@@ -178,7 +195,6 @@ export function ClosedBetaBoundary({ children }: { children: React.ReactNode }) 
 
   const status = (session?.betaStatus || "").toLowerCase();
   const isPending = status === "pending";
-  const hasToken = Boolean(getToken());
 
   async function submitApply() {
     setApplyErr(null);
@@ -211,7 +227,7 @@ export function ClosedBetaBoundary({ children }: { children: React.ReactNode }) 
             отправьте заявку; без входа заявку подать нельзя.
           </p>
 
-          {!hasToken ? (
+          {!hasBrowserToken ? (
             <a
               href={steamLoginUrl()}
               className="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-red-900 to-cb-flame py-3 text-sm font-bold uppercase tracking-wider text-white shadow-[0_8px_28px_rgba(255,49,49,0.25)] transition hover:brightness-110"

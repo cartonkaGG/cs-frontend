@@ -64,7 +64,7 @@ export default function AdminCasesListPage() {
                   <div className="relative h-12 w-16 overflow-hidden rounded-lg bg-black/40">
                     {c.image ? (
                       <Image
-                        src={preferHighResSteamEconomyImage(c.image, "compat") ?? c.image}
+                        src={preferHighResSteamEconomyImage(c.image, "caseArt") ?? c.image}
                         alt=""
                         fill
                         className={`object-cover ${SKIN_IMG_QUALITY_CLASS}`}

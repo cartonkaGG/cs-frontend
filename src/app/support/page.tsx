@@ -22,6 +22,8 @@ export default function SupportPage() {
   const [ok, setOk] = useState<string | null>(null);
   const [list, setList] = useState<TicketSummary[]>([]);
   const [listErr, setListErr] = useState<string | null>(null);
+  /** Токен лише в браузері — у рендері не викликати getToken(), щоб SSR і перший клієнтський рендер збігались */
+  const [hasBrowserToken, setHasBrowserToken] = useState(false);
 
   const loadTickets = useCallback(async () => {
     if (!getToken()) {
@@ -35,6 +37,20 @@ export default function SupportPage() {
     }
     setList(r.data?.tickets || []);
     setListErr(null);
+  }, []);
+
+  useEffect(() => {
+    const sync = () => setHasBrowserToken(Boolean(getToken()));
+    sync();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "cd_token" || e.key === null) sync();
+    };
+    window.addEventListener("focus", sync);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("focus", sync);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   useEffect(() => {
@@ -113,7 +129,7 @@ export default function SupportPage() {
 
         <div className="rounded-2xl border border-cb-stroke/80 bg-black/20 p-6">
           <h2 className="text-lg font-bold text-white">Мои обращения</h2>
-          {!getToken() ? (
+          {!hasBrowserToken ? (
             <p className="mt-3 text-sm text-zinc-500">Войдите через Steam, чтобы видеть историю.</p>
           ) : listErr ? (
             <p className="mt-3 text-sm text-red-300">{listErr}</p>

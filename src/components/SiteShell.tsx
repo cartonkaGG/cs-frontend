@@ -2,18 +2,29 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { apiFetch, clearToken, getToken, steamLoginUrl } from "@/lib/api";
 import { formatRub } from "@/lib/money";
 import { useLiveDrops } from "@/hooks/useLiveDrops";
 import { LiveDropsRail } from "@/components/LiveDropsRail";
 import { CryptoTopUpModal } from "@/components/CryptoTopUpModal";
+import { StormCoinSymbol } from "@/components/StormCoinSymbol";
+import { prefetchUpgradePageData } from "@/lib/upgradePrefetch";
 
+/** Дані шапки з легкого GET /api/me/session (без важкого /api/me). */
 type Me = {
   displayName: string;
   avatar: string;
   balance: number;
+  isAdmin?: boolean;
+  isSupportStaff?: boolean;
+};
+
+type MeSessionApi = {
+  displayName: string;
+  avatar: string;
+  balance?: number;
   isAdmin?: boolean;
   isSupportStaff?: boolean;
 };
@@ -117,24 +128,54 @@ type SupportReplyToast = { ticketId: string; subject: string };
 export function SiteShell({ children }: Props) {
   const drops = useLiveDrops();
   const [me, setMe] = useState<Me | null>(null);
+  /** SSR і перший кадр без localStorage — не смикати шапку «гість → залогінений» */
+  const [hasBrowserToken, setHasBrowserToken] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [cryptoTopUpOpen, setCryptoTopUpOpen] = useState(false);
   const [supportToast, setSupportToast] = useState<SupportReplyToast | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    setHasBrowserToken(Boolean(getToken()));
+  }, []);
+
+  useEffect(() => {
+    const sync = () => setHasBrowserToken(Boolean(getToken()));
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "cd_token" || e.key === null) sync();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", sync);
+    };
+  }, []);
 
   const loadMe = useCallback(async () => {
     if (!getToken()) {
       setMe(null);
       return;
     }
-    const r = await apiFetch<Me>("/api/me");
-    if (r.ok && r.data) setMe(r.data);
-    else setMe(null);
+    const r = await apiFetch<MeSessionApi>("/api/me/session");
+    if (r.ok && r.data) {
+      setMe({
+        displayName: r.data.displayName,
+        avatar: r.data.avatar,
+        balance: typeof r.data.balance === "number" ? r.data.balance : 0,
+        isAdmin: r.data.isAdmin,
+        isSupportStaff: r.data.isSupportStaff,
+      });
+    } else setMe(null);
   }, []);
 
   useEffect(() => {
-    loadMe();
-  }, [loadMe]);
+    if (!hasBrowserToken) {
+      setMe(null);
+      return;
+    }
+    void loadMe();
+  }, [hasBrowserToken, loadMe]);
 
   useEffect(() => {
     const h = () => loadMe();
@@ -169,8 +210,13 @@ export function SiteShell({ children }: Props) {
 
   const balanceStr = me ? formatRub(me.balance) : null;
   const pathname = usePathname();
+  const router = useRouter();
   const upgradeActive = pathname.startsWith("/upgrade");
   const upgradeFilterId = useId().replace(/:/g, "");
+  const warmUpgradeNav = useCallback(() => {
+    router.prefetch("/upgrade");
+    prefetchUpgradePageData();
+  }, [router]);
 
   return (
     <div className="flex min-h-screen flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
@@ -191,6 +237,9 @@ export function SiteShell({ children }: Props) {
         <nav className="flex flex-1 items-center justify-center sm:flex-none sm:justify-start">
           <Link
             href="/upgrade"
+            prefetch
+            onPointerEnter={warmUpgradeNav}
+            onFocus={warmUpgradeNav}
             className={`group relative flex items-center gap-2.5 overflow-hidden rounded-2xl border px-2.5 py-2 outline-none transition sm:gap-3 sm:px-3.5 sm:py-2.5 ${
               upgradeActive
                 ? "border-cb-flame/50 bg-gradient-to-r from-red-950/55 via-cb-panel/90 to-zinc-950/95 shadow-[0_0_22px_rgba(255,49,49,0.2),inset_0_1px_0_rgba(255,49,49,0.12)]"
@@ -215,16 +264,16 @@ export function SiteShell({ children }: Props) {
           </Link>
         </nav>
         <div className="ml-auto flex flex-wrap items-center gap-3 text-sm">
-          {me && balanceStr && (
+          {me && balanceStr != null && (
             <div className="hidden items-stretch lg:flex">
               <div className="flex items-center gap-1.5 rounded-3xl border border-cb-stroke/70 bg-gradient-to-br from-zinc-950/95 via-cb-panel/35 to-black/90 p-1 pl-3 shadow-[inset_0_1px_0_rgba(255,49,49,0.1),0_4px_24px_rgba(0,0,0,0.35)]">
                 <div className="flex min-w-0 flex-col justify-center gap-0.5 py-1.5 pr-1">
                   <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-500">
                     Баланс
                   </span>
-                  <span className="font-mono text-lg font-black tabular-nums leading-none tracking-tight text-white">
-                    {balanceStr}
-                    <span className="ml-1 text-base font-bold text-cb-flame/95">₽</span>
+                  <span className="inline-flex items-center gap-0.5 font-mono text-lg font-black tabular-nums leading-none tracking-tight text-white">
+                    <span className="tabular-nums">{balanceStr}</span>
+                    <StormCoinSymbol className="h-[1.28rem] w-[1.28rem] shrink-0 max-h-none max-w-none" />
                   </span>
                 </div>
                 <div className="h-8 w-px shrink-0 self-center bg-gradient-to-b from-transparent via-cb-stroke/80 to-transparent" aria-hidden />
@@ -238,7 +287,12 @@ export function SiteShell({ children }: Props) {
               </div>
             </div>
           )}
-          {me ? (
+          {hasBrowserToken && !me ? (
+            <div className="flex items-center gap-2" aria-busy>
+              <div className="h-10 w-28 animate-pulse rounded-2xl bg-zinc-800/80 sm:w-36" />
+              <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-zinc-800/80" />
+            </div>
+          ) : me ? (
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -285,14 +339,18 @@ export function SiteShell({ children }: Props) {
                 >
                   <div className="border-b border-cb-stroke px-4 py-3">
                     <p className="truncate text-sm font-semibold text-white">{me.displayName}</p>
-                    <p className="mt-1 font-mono text-xs text-cb-flame">
-                      {formatRub(me.balance)} <span className="text-zinc-500">₽</span>
+                    <p className="mt-1 inline-flex max-w-full min-w-0 items-center gap-0.5 font-mono text-xs text-cb-flame">
+                      <span className="min-w-0 truncate tabular-nums">{formatRub(me.balance)}</span>
+                      <StormCoinSymbol className="h-4 w-4 shrink-0 max-h-none max-w-none opacity-90" />
                     </p>
                   </div>
                   <Link
                     href="/upgrade"
+                    prefetch
                     role="menuitem"
                     className="block px-4 py-2.5 text-sm text-zinc-300 hover:bg-white/5 hover:text-cb-flame"
+                    onPointerEnter={warmUpgradeNav}
+                    onFocus={warmUpgradeNav}
                     onClick={() => setMenuOpen(false)}
                   >
                     Апгрейд

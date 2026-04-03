@@ -286,6 +286,21 @@ export default function CaseOpenPage() {
   }, [slug]);
 
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [hasBrowserToken, setHasBrowserToken] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setHasBrowserToken(Boolean(getToken()));
+    sync();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "cd_token" || e.key === null) sync();
+    };
+    window.addEventListener("focus", sync);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("focus", sync);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   const loadWalletBalance = useCallback(async () => {
     if (!getToken()) {
@@ -553,7 +568,7 @@ export default function CaseOpenPage() {
 
   const resolvedBalance = drop?.newBalance ?? batchDrop?.newBalance ?? walletBalance;
   const shortOnFunds = Boolean(
-    getToken() &&
+    hasBrowserToken &&
       c &&
       resolvedBalance !== null &&
       totalOpenPrice > 0 &&
@@ -657,7 +672,7 @@ export default function CaseOpenPage() {
                             style={{ transform: `translateZ(0) scale(${heroCaseS})` }}
                           >
                             <Image
-                              src={preferHighResSteamEconomyImage(c.image, "compat") ?? c.image}
+                              src={preferHighResSteamEconomyImage(c.image, "caseArt") ?? c.image}
                               alt=""
                               fill
                               sizes="(max-width: 640px) 96vw, (max-width: 1536px) 45vw, 640px"
