@@ -31,7 +31,7 @@ export const ROULETTE_SPIN_ROUNDS = 11;
 /**
  * Менше оборотів у вертикальному батчі (×2–×5 колонок) — менше DOM/Image, та сама тривалість анімації.
  */
-export const BATCH_VERTICAL_SPIN_ROUNDS = 5;
+export const BATCH_VERTICAL_SPIN_ROUNDS = 3;
 
 /**
  * Раніше стрічка була ~48×N карток (сотні DOM + Image) — сильно лагало.

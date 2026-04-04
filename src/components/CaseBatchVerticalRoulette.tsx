@@ -23,6 +23,10 @@ import {
 const CARD_STEP_Y = 164;
 const HALF_CARD_Y = 76;
 const TRACK_PAD = 8;
+/** Відступ зверху як у pt-2.5 — має збігатися з позиціонуванням віртуального ряду */
+const STRIP_PAD_TOP = 10;
+/** Скільки карток рендерити зверху й знизу від видимої зони (решта — spacer) */
+const VIRTUAL_BUFFER = 5;
 
 /** Детермінований RNG для стабільної перестановки між рендерами. */
 function mulberry32(seed: number) {
@@ -73,10 +77,10 @@ const BatchVerticalCard = memo(function BatchVerticalCard({
   const fill = rarityCardFill[rk] || rarityCardFill.common;
   return (
     <div
-      className={`relative h-[9.5rem] w-full max-w-[118px] shrink-0 overflow-hidden rounded-xl border border-cb-stroke/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:max-w-[132px] ${fill} ${
+      className={`relative h-[9.5rem] w-full max-w-[118px] shrink-0 overflow-hidden rounded-xl border border-cb-stroke/70 sm:max-w-[132px] ${fill} ${
         isWinner
-          ? "z-10 scale-[1.05] shadow-[0_0_26px_rgba(255,49,49,0.35)] will-change-transform transition-transform duration-200 ease-out"
-          : "z-0 scale-100"
+          ? "z-10 scale-[1.04] ring-2 ring-orange-400/50 will-change-transform transition-transform duration-200 ease-out"
+          : "z-0 scale-100 [content-visibility:auto] [contain-intrinsic-size:152px_118px]"
       }`}
     >
       <div className="relative z-[1] flex h-full min-h-0 flex-col p-1.5 pb-1">
@@ -89,7 +93,7 @@ const BatchVerticalCard = memo(function BatchVerticalCard({
               alt=""
               draggable={false}
               decoding="async"
-              className={`absolute inset-0 m-auto max-h-full max-w-full object-contain drop-shadow-md ${SKIN_IMG_QUALITY_CLASS}`}
+              className={`absolute inset-0 m-auto max-h-full max-w-full object-contain ${SKIN_IMG_QUALITY_CLASS}`}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-2xl text-zinc-300/80">?</div>
@@ -140,14 +144,30 @@ function VerticalColumn({
     return { perm: p, inv: invertPermutation(p) };
   }, [n, columnIndex]);
 
-  const strip = useMemo(() => {
-    if (!items.length || !perm.length) return [];
-    const len = rouletteStripSlotCount(items.length, BATCH_VERTICAL_SPIN_ROUNDS);
-    return Array.from({ length: len }, (_, i) => {
-      const catIdx = perm[i % n] ?? 0;
-      return { ...items[catIdx], key: i };
-    });
-  }, [items, n, perm]);
+  const stripLen =
+    n > 0 && perm.length > 0
+      ? rouletteStripSlotCount(n, BATCH_VERTICAL_SPIN_ROUNDS)
+      : 0;
+
+  const head = n > 0 ? rouletteStripHeadSlots(n) : 0;
+
+  const [slotLo, slotHi] = useMemo(() => {
+    if (stripLen <= 0 || n <= 0) return [0, -1] as const;
+    const idleIdx = n * 3 + head;
+    if (spinWaiting || landOnIndex == null || !inv.length) {
+      return [
+        Math.max(0, idleIdx - VIRTUAL_BUFFER),
+        Math.min(stripLen - 1, idleIdx + VIRTUAL_BUFFER),
+      ] as const;
+    }
+    const ringLand = inv[landOnIndex] ?? 0;
+    const finalSlot = BATCH_VERTICAL_SPIN_ROUNDS * n + ringLand + head;
+    const lo = Math.max(0, Math.min(idleIdx, finalSlot) - VIRTUAL_BUFFER);
+    const hi = Math.min(stripLen - 1, Math.max(idleIdx, finalSlot) + VIRTUAL_BUFFER);
+    return [lo, hi] as const;
+  }, [stripLen, n, head, spinWaiting, landOnIndex, inv]);
+
+  const stripMinHeight = STRIP_PAD_TOP + Math.max(0, stripLen) * CARD_STEP_Y + 96;
 
   useLayoutEffect(() => {
     if (!viewportRef.current || n <= 0) return;
@@ -155,8 +175,6 @@ function VerticalColumn({
     let cancelled = false;
     let rafOuter: number | null = null;
     let rafInner: number | null = null;
-
-    const head = rouletteStripHeadSlots(n);
 
     if (spinWaiting) {
       const vh = viewportRef.current.clientHeight;
@@ -202,7 +220,7 @@ function VerticalColumn({
       if (rafOuter != null) cancelAnimationFrame(rafOuter);
       if (rafInner != null) cancelAnimationFrame(rafInner);
     };
-  }, [n, inv, spinWaiting, landOnIndex, landEpoch]);
+  }, [n, head, inv, spinWaiting, landOnIndex, landEpoch]);
 
   function onTransitionEnd(e: React.TransitionEvent) {
     if (e.target !== e.currentTarget) return;
@@ -212,12 +230,11 @@ function VerticalColumn({
     onStripTransitionEnd();
   }
 
-  const headSlots = rouletteStripHeadSlots(n);
   const ringLandWin =
     landOnIndex != null && inv.length > 0 ? (inv[landOnIndex] ?? 0) : 0;
   const winnerStripIndex =
     landOnIndex != null && n > 0 && inv.length > 0
-      ? BATCH_VERTICAL_SPIN_ROUNDS * n + ringLandWin + headSlots
+      ? BATCH_VERTICAL_SPIN_ROUNDS * n + ringLandWin + head
       : -1;
 
   return (
@@ -226,7 +243,7 @@ function VerticalColumn({
       className="relative h-[16rem] min-w-0 flex-1 overflow-hidden rounded-xl border border-cb-stroke/50 bg-[#05080f]/95 shadow-[inset_0_0_32px_rgba(0,0,0,0.45)] [contain:layout_paint] sm:h-[18rem] sm:max-w-[148px] sm:flex-none"
     >
       <div
-        className="flex flex-col items-center gap-3 px-1.5 pb-28 pt-2.5 will-change-transform [backface-visibility:hidden]"
+        className="will-change-transform [backface-visibility:hidden] [transform:translateZ(0)]"
         style={{
           transform: `translate3d(0,${ty}px,0)`,
           transition:
@@ -236,13 +253,27 @@ function VerticalColumn({
         }}
         onTransitionEnd={onTransitionEnd}
       >
-        {strip.map((it) => (
-          <BatchVerticalCard
-            key={it.key}
-            item={it}
-            isWinner={accentWinner && it.key === winnerStripIndex}
-          />
-        ))}
+        <div className="relative mx-auto w-full px-1.5" style={{ minHeight: stripMinHeight }}>
+          {slotHi >= slotLo &&
+            Array.from({ length: slotHi - slotLo + 1 }, (_, k) => {
+              const i = slotLo + k;
+              const catIdx = perm[i % n] ?? 0;
+              const it = items[catIdx];
+              if (!it) return null;
+              return (
+                <div
+                  key={i}
+                  className="absolute left-1/2 w-[calc(100%-0.75rem)] max-w-[132px] -translate-x-1/2"
+                  style={{ top: STRIP_PAD_TOP + i * CARD_STEP_Y }}
+                >
+                  <BatchVerticalCard
+                    item={it}
+                    isWinner={accentWinner && i === winnerStripIndex}
+                  />
+                </div>
+              );
+            })}
+        </div>
       </div>
 
       <div
