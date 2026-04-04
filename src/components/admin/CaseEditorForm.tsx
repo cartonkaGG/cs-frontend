@@ -60,6 +60,9 @@ export function CaseEditorForm({ mode, initial }: Props) {
   const [featured, setFeatured] = useState(Boolean(initial?.featured));
   const [hidden, setHidden] = useState(Boolean(initial?.hidden));
   const [accent, setAccent] = useState(initial?.accent || "amber");
+  const [homeOrder, setHomeOrder] = useState<number>(() =>
+    Math.max(0, Math.floor(Number(initial?.homeOrder) || 0)),
+  );
   const [items, setItems] = useState<LootRow[]>(
     initial?.items?.length ? initial.items : [emptyLoot()]
   );
@@ -104,6 +107,12 @@ export function CaseEditorForm({ mode, initial }: Props) {
     };
   }, [items]);
 
+  useEffect(() => {
+    if (mode !== "edit" || initial?.homeOrder == null) return;
+    const h = Math.floor(Number(initial.homeOrder));
+    if (Number.isFinite(h) && h >= 0) setHomeOrder(h);
+  }, [mode, initial?.slug, initial?.homeOrder]);
+
   const payload = useCallback(() => {
     const p = Number(price);
     const rawItems = items.map((it) => ({
@@ -118,7 +127,7 @@ export function CaseEditorForm({ mode, initial }: Props) {
     const cSkin = Math.min(180, Math.max(40, Math.round(Number(cardSkinImageScale) || 100)));
     const hCase = Math.min(180, Math.max(40, Math.round(Number(heroCaseImageScale) || 100)));
     const hSkin = Math.min(180, Math.max(40, Math.round(Number(heroSkinImageScale) || 100)));
-    return {
+    const base = {
       slug: slug.trim().toLowerCase(),
       name: name.trim(),
       price: Number.isFinite(p) ? p : 0,
@@ -134,7 +143,15 @@ export function CaseEditorForm({ mode, initial }: Props) {
       accent: ACCENT_KEYS.includes(accent) ? accent : "amber",
       items: rawItems.filter((it) => it.name.length > 0),
     };
+    if (mode === "edit") {
+      return {
+        ...base,
+        homeOrder: Math.max(0, Math.min(1_000_000, Math.floor(Number(homeOrder) || 0))),
+      };
+    }
+    return base;
   }, [
+    mode,
     slug,
     name,
     price,
@@ -148,6 +165,7 @@ export function CaseEditorForm({ mode, initial }: Props) {
     featured,
     hidden,
     accent,
+    homeOrder,
     items,
   ]);
 
@@ -196,6 +214,7 @@ export function CaseEditorForm({ mode, initial }: Props) {
         heroCaseImageScale: saveBody.heroCaseImageScale,
         heroSkinImageScale: saveBody.heroSkinImageScale,
         category: saveBody.category,
+        homeOrder,
         featured: saveBody.featured,
         hidden: saveBody.hidden,
         accent: saveBody.accent,

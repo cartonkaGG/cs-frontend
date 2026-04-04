@@ -1,16 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { formatSiteAmount } from "@/lib/money";
 import type { AdminCaseFull } from "@/lib/caseConfig";
 import Image from "next/image";
 import { preferHighResSteamEconomyImage, SKIN_IMG_QUALITY_CLASS } from "@/lib/steamImage";
+import { CATEGORY_ORDER } from "@/lib/categories";
+
+function categorySortKey(cat: string): number {
+  const c = cat || "popular";
+  const i = CATEGORY_ORDER.indexOf(c as (typeof CATEGORY_ORDER)[number]);
+  if (i === -1) return 100;
+  return i;
+}
 
 export default function AdminCasesListPage() {
   const [cases, setCases] = useState<AdminCaseFull[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [moveBusy, setMoveBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await apiFetch<{ cases: AdminCaseFull[] }>("/api/admin/cases");
@@ -32,6 +41,42 @@ export default function AdminCasesListPage() {
     return () => window.removeEventListener("cd-cases-updated", h);
   }, [load]);
 
+  const sortedCases = useMemo(() => {
+    return [...cases].sort((a, b) => {
+      const ca = categorySortKey(a.category || "popular");
+      const cb = categorySortKey(b.category || "popular");
+      if (ca !== cb) return ca - cb;
+      const ho = (a.homeOrder ?? 0) - (b.homeOrder ?? 0);
+      if (ho !== 0) return ho;
+      return a.slug.localeCompare(b.slug);
+    });
+  }, [cases]);
+
+  async function moveHome(slug: string, direction: "up" | "down") {
+    setMoveBusy(slug);
+    setErr(null);
+    try {
+      const r = await apiFetch<{ ok?: boolean }>(
+        `/api/admin/cases/${encodeURIComponent(slug)}/move-home`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ direction }),
+        },
+      );
+      if (!r.ok) {
+        setErr(r.error || "Не удалось изменить порядок");
+        return;
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("cd-cases-updated"));
+      }
+      await load();
+    } finally {
+      setMoveBusy(null);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -44,12 +89,17 @@ export default function AdminCasesListPage() {
         </Link>
       </div>
       {err && <p className="text-sm text-red-400">{err}</p>}
+      <p className="text-xs text-zinc-500">
+        Кнопки «вверх / вниз» меняют порядок карточек на главной внутри категории (секция на сайте).
+      </p>
       <div className="overflow-x-auto rounded-xl border border-cb-stroke bg-cb-panel/30">
-        <table className="w-full min-w-[640px] text-left text-sm">
+        <table className="w-full min-w-[720px] text-left text-sm">
           <thead>
             <tr className="border-b border-cb-stroke text-xs uppercase tracking-wider text-zinc-500">
+              <th className="px-2 py-3">На главной</th>
               <th className="px-4 py-3">Превью</th>
               <th className="px-4 py-3">Название</th>
+              <th className="px-4 py-3">Категория</th>
               <th className="px-4 py-3">Slug</th>
               <th className="px-4 py-3">Цена</th>
               <th className="px-4 py-3">Предметов</th>
@@ -59,8 +109,36 @@ export default function AdminCasesListPage() {
             </tr>
           </thead>
           <tbody>
-            {cases.map((c) => (
+            {sortedCases.map((c, rowIdx) => {
+              const cat = c.category || "popular";
+              const prev = rowIdx > 0 ? sortedCases[rowIdx - 1] : null;
+              const next = rowIdx < sortedCases.length - 1 ? sortedCases[rowIdx + 1] : null;
+              const canUp = prev != null && (prev.category || "popular") === cat;
+              const canDown = next != null && (next.category || "popular") === cat;
+              return (
               <tr key={c.slug} className="border-b border-cb-stroke/60 last:border-0">
+                <td className="px-2 py-2">
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      title="Выше в категории на главной"
+                      disabled={!canUp || moveBusy === c.slug}
+                      onClick={() => void moveHome(c.slug, "up")}
+                      className="rounded border border-cb-stroke/80 bg-black/40 px-2 py-1 text-[11px] font-semibold text-zinc-300 transition hover:border-orange-500/50 hover:text-white disabled:opacity-35"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      title="Ниже в категории на главной"
+                      disabled={!canDown || moveBusy === c.slug}
+                      onClick={() => void moveHome(c.slug, "down")}
+                      className="rounded border border-cb-stroke/80 bg-black/40 px-2 py-1 text-[11px] font-semibold text-zinc-300 transition hover:border-orange-500/50 hover:text-white disabled:opacity-35"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                </td>
                 <td className="px-4 py-2">
                   <div className="relative h-12 w-16 overflow-hidden rounded-lg bg-black/40">
                     {c.image ? (
@@ -81,6 +159,7 @@ export default function AdminCasesListPage() {
                   </div>
                 </td>
                 <td className="px-4 py-2 font-medium text-zinc-200">{c.name}</td>
+                <td className="px-4 py-2 text-xs text-zinc-400">{cat}</td>
                 <td className="px-4 py-2 font-mono text-xs text-zinc-500">{c.slug}</td>
                 <td className="px-4 py-2 font-mono text-cb-flame">
                   {formatSiteAmount(c.price)}
@@ -107,7 +186,8 @@ export default function AdminCasesListPage() {
                   </Link>
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
         {cases.length === 0 && !err && (

@@ -56,6 +56,7 @@ export type CaseSummary = {
   cardCaseImageScale?: number;
   cardSkinImageScale?: number;
   category: string;
+  homeOrder?: number;
   featured?: boolean;
   accent: string;
 };

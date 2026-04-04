@@ -82,7 +82,15 @@ export function HomePage() {
     return () => window.removeEventListener("cd-site-ui-updated", h);
   }, [loadSiteUi]);
 
-  const featured = cases.filter((c) => c.featured);
+  const featured = useMemo(() => {
+    return cases
+      .filter((c) => c.featured)
+      .sort(
+        (a, b) =>
+          (a.homeOrder ?? 0) - (b.homeOrder ?? 0) ||
+          a.slug.localeCompare(b.slug),
+      );
+  }, [cases]);
 
   const sectionKeys = useMemo(() => {
     const keys = new Set(cases.map((c) => c.category || "popular"));
@@ -129,7 +137,13 @@ export function HomePage() {
         <div className="mx-auto max-w-7xl">
           {error && <p className="mb-6 text-red-400">{error}</p>}
           {sectionKeys.map((key) => {
-            const list = cases.filter((c) => (c.category || "popular") === key);
+            const list = cases
+              .filter((c) => (c.category || "popular") === key)
+              .sort(
+                (a, b) =>
+                  (a.homeOrder ?? 0) - (b.homeOrder ?? 0) ||
+                  a.slug.localeCompare(b.slug),
+              );
             if (!list.length) return null;
             return (
               <div key={key} className="mb-14 last:mb-0">
