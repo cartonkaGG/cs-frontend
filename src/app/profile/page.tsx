@@ -3,11 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { normRarity, rarityBar } from "@/components/CaseRoulette";
+import { normRarity, rarityBar, rarityCardFill } from "@/components/CaseRoulette";
 import { FreeKassaBanner } from "@/components/FreeKassaBanner";
 import { SiteShell } from "@/components/SiteShell";
 import { apiFetch, clearToken, getToken } from "@/lib/api";
 import { requestAuthModal } from "@/lib/authModal";
+import { RoundedZapIcon } from "@/components/icons/RoundedZapIcon";
 import { SiteMoney } from "@/components/SiteMoney";
 import { SitePriceBadge } from "@/components/SitePriceBadge";
 import { formatSiteAmount } from "@/lib/money";
@@ -102,6 +103,91 @@ function displayItemRub(it: Me["inventory"][number]): number {
   return Number(it.sellPrice) || 0;
 }
 
+/** Скільки карток інвентаря на одній сторінці профілю. */
+const INVENTORY_ITEMS_PER_PAGE = 12;
+
+type InventoryPageToken = number | "ellipsis";
+
+function buildInventoryPaginationPages(current: number, total: number): InventoryPageToken[] {
+  if (total <= 1) return [1];
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const delta = 1;
+  const left = Math.max(2, current - delta);
+  const right = Math.min(total - 1, current + delta);
+  const out: InventoryPageToken[] = [1];
+  if (left > 2) out.push("ellipsis");
+  for (let i = left; i <= right; i++) out.push(i);
+  if (right < total - 1) out.push("ellipsis");
+  out.push(total);
+  return out;
+}
+
+function InventoryPaginationBar({
+  currentPage,
+  totalPages,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) {
+  const model = buildInventoryPaginationPages(currentPage, totalPages);
+  const arrowCls =
+    "flex h-9 min-w-9 items-center justify-center rounded-lg border border-cb-stroke/60 bg-zinc-950/80 text-sm font-bold text-zinc-200 transition hover:border-cb-flame/45 hover:bg-zinc-900 hover:text-white disabled:cursor-not-allowed disabled:opacity-35 sm:h-10 sm:min-w-10";
+  const pageCls =
+    "min-w-9 rounded-lg border px-2 py-1.5 text-center text-xs font-black tabular-nums transition sm:min-w-10 sm:text-sm";
+  const pageIdle = `${pageCls} border-cb-stroke/55 bg-black/45 text-zinc-300 hover:border-cb-flame/40 hover:text-white`;
+  const pageActive = `${pageCls} border-cb-flame/55 bg-red-950/35 text-cb-flame shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]`;
+
+  return (
+    <nav
+      className="flex flex-wrap items-center justify-center gap-1 sm:gap-1.5"
+      aria-label="Страницы инвентаря"
+    >
+      <button
+        type="button"
+        className={arrowCls}
+        disabled={currentPage <= 1}
+        aria-label="Предыдущая страница"
+        onClick={() => onPageChange(currentPage - 1)}
+      >
+        &lt;
+      </button>
+      {model.map((token, idx) =>
+        token === "ellipsis" ? (
+          <span
+            key={`e-${idx}`}
+            className="flex h-9 min-w-8 items-center justify-center text-sm font-bold text-zinc-500 sm:h-10"
+            aria-hidden
+          >
+            …
+          </span>
+        ) : (
+          <button
+            key={token}
+            type="button"
+            className={token === currentPage ? pageActive : pageIdle}
+            aria-label={`Страница ${token}`}
+            aria-current={token === currentPage ? "page" : undefined}
+            onClick={() => onPageChange(token)}
+          >
+            {token}
+          </button>
+        ),
+      )}
+      <button
+        type="button"
+        className={arrowCls}
+        disabled={currentPage >= totalPages}
+        aria-label="Следующая страница"
+        onClick={() => onPageChange(currentPage + 1)}
+      >
+        &gt;
+      </button>
+    </nav>
+  );
+}
+
 function ProfileHexBg() {
   return (
     <div
@@ -134,6 +220,7 @@ export default function ProfilePage() {
   const [withdrawErr, setWithdrawErr] = useState<string | null>(null);
   const [myWithdrawals, setMyWithdrawals] = useState<MyWithdrawalRow[]>([]);
   const [cancelWithdrawBusyId, setCancelWithdrawBusyId] = useState<string | null>(null);
+  const [inventoryPage, setInventoryPage] = useState(1);
 
   /** Активні заявки з /api/withdrawals/mine — єдине джерело для «На выводе» / «Отменить», щоб не розходилось з /api/me. */
   const activeWithdrawalByItemId = useMemo(() => {
@@ -163,6 +250,37 @@ export default function ProfilePage() {
         .length,
     [me?.inventory, activeWithdrawalByItemId],
   );
+
+  const inventoryTotalPages = useMemo(() => {
+    const n = me?.inventory?.length ?? 0;
+    if (n <= 0) return 1;
+    return Math.max(1, Math.ceil(n / INVENTORY_ITEMS_PER_PAGE));
+  }, [me?.inventory?.length]);
+
+  const safeInventoryPage = Math.min(Math.max(1, inventoryPage), inventoryTotalPages);
+
+  const inventoryPageItems = useMemo(() => {
+    const inv = me?.inventory;
+    if (!inv?.length) return [];
+    const start = (safeInventoryPage - 1) * INVENTORY_ITEMS_PER_PAGE;
+    return inv.slice(start, start + INVENTORY_ITEMS_PER_PAGE);
+  }, [me?.inventory, safeInventoryPage]);
+
+  useEffect(() => {
+    setInventoryPage((p) => Math.max(1, Math.min(p, inventoryTotalPages)));
+  }, [inventoryTotalPages]);
+
+  const goInventoryPage = useCallback((p: number) => {
+    setInventoryPage((prev) => {
+      const next = Math.max(1, Math.min(p, inventoryTotalPages));
+      if (next !== prev && typeof document !== "undefined") {
+        requestAnimationFrame(() => {
+          document.getElementById("inventory")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+      return next;
+    });
+  }, [inventoryTotalPages]);
 
   const load = useCallback(async () => {
     if (!getToken()) {
@@ -716,23 +834,26 @@ export default function ProfilePage() {
 
                 <div
                   id="inventory"
-                  className="relative overflow-hidden rounded-2xl border border-cb-stroke/75 bg-cb-panel/40 bg-cb-mesh shadow-[inset_0_1px_0_rgba(255,49,49,0.06)]"
+                  className="relative overflow-hidden rounded-2xl border border-cb-stroke/70 bg-gradient-to-b from-[#0a0a0f]/95 via-cb-panel/50 to-black/90 bg-cb-mesh shadow-[inset_0_1px_0_rgba(255,49,49,0.08),0_20px_60px_rgba(0,0,0,0.35)]"
                 >
                   <div
-                    className="pointer-events-none absolute inset-0 bg-[linear-gradient(125deg,transparent_42%,rgba(255,49,49,0.06)_50%,transparent_58%)]"
+                    className="pointer-events-none absolute inset-0 bg-[linear-gradient(125deg,transparent_40%,rgba(255,49,49,0.07)_50%,transparent_60%)]"
                     aria-hidden
                   />
                   <div className="relative px-4 pb-8 pt-8 sm:px-8">
-                    <h2 className="text-center text-sm font-bold uppercase tracking-[0.28em] text-white sm:text-base">
-                      Ваши предметы
-                    </h2>
+                    <div className="mx-auto max-w-xl text-center">
+                      <h2 className="text-base font-black uppercase tracking-[0.22em] text-white sm:text-lg">
+                        Ваши предметы
+                      </h2>
+                      <p className="mt-2 text-xs leading-relaxed text-zinc-500 sm:text-sm">
+                        Продайте на баланс, выведите через админа или отправьте в апгрейд
+                      </p>
+                    </div>
 
-                    <div className="mt-6 flex flex-col gap-4 sm:mt-8 sm:flex-row sm:items-center sm:justify-between">
-                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-cb-flame sm:text-[13px]">
-                        <span className="flex h-4 w-4 items-center justify-center rounded border border-cb-flame/80 bg-cb-flame/15 text-[10px] leading-none text-cb-flame">
-                          ✓
-                        </span>
-                        Весь дроп
+                    <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="inline-flex items-center justify-center gap-2 rounded-full border border-cb-flame/25 bg-red-950/20 px-3 py-1.5 text-[11px] font-semibold text-cb-flame/95 sm:justify-start sm:text-xs">
+                        <RoundedZapIcon className="h-3.5 w-3.5 shrink-0 text-cb-flame" aria-hidden />
+                        Весь дроп с кейсов и апгрейдов
                       </span>
                       <button
                         type="button"
@@ -742,9 +863,7 @@ export default function ProfilePage() {
                         }}
                         className={`${SITE_MONEY_CTA_CLASS} min-h-[2.75rem] shrink-0 px-4 py-2.5 text-xs font-bold uppercase tracking-wide disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:text-sm`}
                       >
-                        <span aria-hidden className="text-base leading-none">
-                          🪙
-                        </span>
+                        <RoundedZapIcon className="h-[1.05em] w-[1.05em] shrink-0 text-white opacity-95" aria-hidden />
                         {me.inventory.length === 0
                           ? "Нет предметов для продажи"
                           : !sellableInventoryCount
@@ -760,40 +879,73 @@ export default function ProfilePage() {
                       </button>
                     </div>
 
+                    {me.inventory.length > INVENTORY_ITEMS_PER_PAGE ? (
+                      <div className="mt-6 space-y-2 border-b border-cb-stroke/30 pb-6">
+                        <p className="text-center text-[11px] tabular-nums text-zinc-500 sm:text-xs">
+                          {(() => {
+                            const total = me.inventory.length;
+                            const from = (safeInventoryPage - 1) * INVENTORY_ITEMS_PER_PAGE + 1;
+                            const to = Math.min(safeInventoryPage * INVENTORY_ITEMS_PER_PAGE, total);
+                            if (from === to) {
+                              return (
+                                <>
+                                  Показан <span className="font-semibold text-zinc-400">{from}</span>-й предмет из{" "}
+                                  <span className="font-semibold text-zinc-400">{total}</span>
+                                </>
+                              );
+                            }
+                            return (
+                              <>
+                                Показаны предметы{" "}
+                                <span className="font-semibold text-zinc-400">
+                                  {from}–{to}
+                                </span>{" "}
+                                из <span className="font-semibold text-zinc-400">{total}</span>
+                              </>
+                            );
+                          })()}
+                        </p>
+                        <InventoryPaginationBar
+                          currentPage={safeInventoryPage}
+                          totalPages={inventoryTotalPages}
+                          onPageChange={goInventoryPage}
+                        />
+                      </div>
+                    ) : null}
+
                     {me.inventory.length > 0 ? (
-                      <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
-                        {me.inventory.map((it) => {
+                      <ul className="mt-6 grid grid-cols-2 gap-2 sm:mt-8 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 md:gap-3 lg:grid-cols-5 lg:gap-3 xl:grid-cols-6">
+                        {inventoryPageItems.map((it) => {
                           const rk = normRarity(it.rarity);
                           const bar = rarityBar[rk] || rarityBar.common;
+                          const fill = rarityCardFill[rk] || rarityCardFill.common;
                           const { weapon, skin } = splitItemName(it.name);
-                          const marketUrl = `https://steamcommunity.com/market/search?q=${encodeURIComponent(it.name)}`;
                           const itemKey = String(it.itemId ?? "").trim();
                           const wdAct = activeWithdrawalByItemId.get(itemKey);
                           const locked = Boolean(wdAct);
                           const pendingWdId = wdAct?.status === "pending" ? wdAct.id : null;
                           const showRub = displayItemRub(it);
+                          const priceTitle =
+                            it.marketPriceRub != null && it.marketPriceRub > 0
+                              ? "Ориентир market.csgo; продажа по цене сайта — другая сумма"
+                              : undefined;
                           return (
                             <li
                               key={it.itemId}
-                              className={`group flex flex-col overflow-hidden rounded-xl border border-cb-stroke/70 bg-gradient-to-br from-[#06060c] via-[#08050a] to-black shadow-[0_12px_40px_rgba(0,0,0,0.35)] ${locked ? "opacity-90 ring-1 ring-amber-600/35" : ""}`}
+                              className={`group flex flex-col overflow-hidden rounded-lg border border-cb-stroke/55 shadow-[0_10px_28px_rgba(0,0,0,0.38)] ring-1 ring-black/40 transition hover:border-cb-stroke/80 ${fill} ${locked ? "ring-amber-500/30" : ""}`}
                             >
-                              <div className="relative px-2 pb-0 pt-2">
-                                <div className="absolute left-2 top-2 z-10 text-[15px] leading-none opacity-90">
-                                  📦
+                              <div className="relative px-1.5 pb-0.5 pt-1.5 sm:px-2 sm:pb-1 sm:pt-2">
+                                <div className="absolute left-1.5 top-1.5 z-10 max-w-[calc(100%-3rem)] sm:left-2 sm:top-2 sm:max-w-[calc(100%-3.5rem)]">
+                                  <SitePriceBadge
+                                    value={showRub}
+                                    size="sm"
+                                    title={priceTitle}
+                                    className="!scale-[0.88] !origin-top-left sm:!scale-95"
+                                  />
                                 </div>
-                                <p
-                                  className="truncate pl-7 text-right font-mono text-[11px] font-bold tabular-nums text-cb-flame sm:text-xs"
-                                  title={
-                                    it.marketPriceRub != null && it.marketPriceRub > 0
-                                      ? "Ориентир market.csgo; продажа по цене сайта — другая сумма"
-                                      : undefined
-                                  }
-                                >
-                                  <SiteMoney value={showRub} iconClassName="h-[1em] w-[1em] text-cb-flame" />
-                                </p>
                                 {locked ? (
-                                  <div className="mt-0.5 space-y-1 pl-7 text-right">
-                                    <p className="truncate text-[9px] font-semibold uppercase tracking-wide text-amber-400/90">
+                                  <div className="absolute right-1.5 top-1.5 z-10 max-w-[4.75rem] text-right sm:right-2 sm:top-2 sm:max-w-[5.5rem]">
+                                    <p className="rounded border border-amber-500/35 bg-amber-950/50 px-1 py-0.5 text-[7px] font-bold uppercase leading-tight tracking-wide text-amber-200/95 sm:rounded-md sm:px-1.5 sm:text-[8px]">
                                       На выводе
                                     </p>
                                     {pendingWdId ? (
@@ -801,138 +953,95 @@ export default function ProfilePage() {
                                         type="button"
                                         disabled={cancelWithdrawBusyId === pendingWdId}
                                         onClick={() => void cancelMyWithdraw(pendingWdId)}
-                                        className="truncate text-[9px] font-bold text-sky-400 underline decoration-sky-500/50 underline-offset-2 transition hover:text-sky-300 disabled:opacity-50"
+                                        className="mt-0.5 block w-full text-[7px] font-bold text-sky-400 underline decoration-sky-500/40 underline-offset-2 transition hover:text-sky-300 disabled:opacity-50 sm:mt-1 sm:text-[8px]"
                                       >
-                                        {cancelWithdrawBusyId === pendingWdId ? "…" : "Отменить вывод"}
+                                        {cancelWithdrawBusyId === pendingWdId ? "…" : "Отменить"}
                                       </button>
                                     ) : null}
                                   </div>
                                 ) : null}
-                                <div className="relative mx-auto mt-1 aspect-square w-[88%] max-w-[9.5rem]">
+                                <div className="relative mx-auto mt-6 aspect-square w-[86%] max-w-[6.75rem] sm:mt-7 sm:max-w-[7.75rem]">
                                   {it.image ? (
                                     <Image
                                       src={preferHighResSteamEconomyImage(it.image) ?? it.image}
                                       alt=""
                                       fill
-                                      className={`object-contain p-1 ${SKIN_IMG_QUALITY_CLASS}`}
-                                      sizes="(max-width: 640px) 45vw, 140px"
+                                      className={`object-contain p-0.5 drop-shadow-[0_6px_18px_rgba(0,0,0,0.4)] sm:p-1 ${SKIN_IMG_QUALITY_CLASS}`}
+                                      sizes="(max-width: 640px) 40vw, 110px"
                                       quality={100}
                                       unoptimized
                                     />
                                   ) : (
-                                    <div className="flex h-full items-center justify-center text-2xl text-zinc-700">
+                                    <div className="flex h-full items-center justify-center text-lg text-zinc-700 sm:text-2xl">
                                       ?
                                     </div>
                                   )}
                                 </div>
-                                <div className={`mx-auto mt-1 h-1 w-[92%] rounded-full ${bar}`} />
+                                <div className={`mx-auto mt-1.5 h-0.5 w-[88%] rounded-full sm:mt-2 sm:h-1 sm:w-[90%] ${bar}`} />
                               </div>
-                              <div className="flex min-h-[3.25rem] flex-col justify-center px-2 py-2 text-center">
-                                <p className="line-clamp-2 text-[11px] font-bold leading-tight text-white sm:text-xs">
+                              <div className="flex min-h-[2.5rem] flex-col justify-center px-1.5 py-1 text-center sm:min-h-[2.75rem] sm:px-2 sm:py-1.5">
+                                <p className="line-clamp-2 text-[10px] font-bold leading-tight text-white sm:text-[11px]">
                                   {weapon || it.name}
                                 </p>
                                 {skin ? (
-                                  <p className="mt-0.5 line-clamp-2 text-[10px] font-medium text-zinc-400 sm:text-[11px]">
+                                  <p className="mt-0.5 line-clamp-2 text-[9px] font-medium text-zinc-300/95 sm:text-[10px]">
                                     {skin}
                                   </p>
                                 ) : null}
                                 {it.exterior ? (
-                                  <p className="mt-0.5 line-clamp-1 text-[9px] capitalize text-zinc-500">
+                                  <p className="mt-0.5 line-clamp-1 text-[8px] capitalize text-zinc-500 sm:text-[9px]">
                                     {it.exterior}
                                   </p>
                                 ) : null}
                               </div>
-                              <div className="mt-auto flex items-center justify-center gap-0.5 border-t border-cb-stroke/50 bg-black/45 px-1 py-2 sm:gap-1">
+                              <div className="mt-auto space-y-1 border-t border-cb-stroke/45 bg-black/55 p-1.5 sm:space-y-1.5 sm:p-2">
+                                <div className="grid grid-cols-2 gap-1 sm:gap-1.5">
+                                  <button
+                                    type="button"
+                                    title={locked ? "Предмет на выводе" : "Заявка на вывод"}
+                                    disabled={locked}
+                                    onClick={() => {
+                                      if (locked) return;
+                                      setWithdrawErr(null);
+                                      setWithdrawTradeUrl(tradeUrl.trim());
+                                      setWithdrawItem(it);
+                                    }}
+                                    className="rounded-md border border-cb-stroke/60 bg-zinc-950/80 py-1.5 text-[8px] font-black uppercase tracking-wide text-zinc-300 transition hover:border-cb-flame/45 hover:bg-zinc-900/90 hover:text-white disabled:cursor-not-allowed disabled:opacity-35 sm:rounded-lg sm:py-2 sm:text-[9px] md:text-[10px]"
+                                  >
+                                    Вывод
+                                  </button>
+                                  {locked ? (
+                                    <span className="flex cursor-not-allowed items-center justify-center rounded-md border border-cb-stroke/40 bg-black/30 py-1.5 text-[8px] font-black uppercase tracking-wide text-zinc-600 opacity-50 sm:rounded-lg sm:py-2 sm:text-[9px] md:text-[10px]">
+                                      Апгрейд
+                                    </span>
+                                  ) : (
+                                    <Link
+                                      href="/upgrade"
+                                      title="Апгрейд"
+                                      className="flex items-center justify-center rounded-md border border-cb-stroke/60 bg-zinc-950/80 py-1.5 text-center text-[8px] font-black uppercase tracking-wide text-zinc-300 transition hover:border-cb-flame/45 hover:bg-zinc-900/90 hover:text-white sm:rounded-lg sm:py-2 sm:text-[9px] md:text-[10px]"
+                                    >
+                                      Апгрейд
+                                    </Link>
+                                  )}
+                                </div>
                                 <button
                                   type="button"
-                                  title={
-                                    locked
-                                      ? "Предмет на выводе"
-                                      : "Вывод через Market.csgo"
-                                  }
-                                  disabled={locked}
-                                  onClick={() => {
-                                    if (locked) return;
-                                    setWithdrawErr(null);
-                                    setWithdrawTradeUrl(tradeUrl.trim());
-                                    setWithdrawItem(it);
-                                  }}
-                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/30 text-zinc-400 transition hover:border-cb-flame/45 hover:text-cb-flame disabled:cursor-not-allowed disabled:opacity-35"
-                                >
-                                  <span className="text-[13px]" aria-hidden>
-                                    📋
-                                  </span>
-                                </button>
-                                {locked ? (
-                                  <span
-                                    title="Предмет на выводе"
-                                    className="flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/20 text-zinc-600 opacity-50"
-                                  >
-                                    <svg
-                                      className="h-3.5 w-3.5"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth={2}
-                                      aria-hidden
-                                    >
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 11l5-5 5 5M7 17l5-5 5 5" />
-                                    </svg>
-                                  </span>
-                                ) : (
-                                  <Link
-                                    href="/upgrade"
-                                    title="Апгрейд"
-                                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/30 text-zinc-400 transition hover:border-cb-flame/45 hover:text-cb-flame"
-                                  >
-                                    <svg
-                                      className="h-3.5 w-3.5"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth={2}
-                                      aria-hidden
-                                    >
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 11l5-5 5 5M7 17l5-5 5 5" />
-                                    </svg>
-                                  </Link>
-                                )}
-                                <button
-                                  type="button"
-                                  title={locked ? "Предмет на выводе" : "Продать"}
+                                  title={locked ? "Предмет на выводе" : "Продать на баланс"}
                                   disabled={locked}
                                   onClick={() => {
                                     if (locked) return;
                                     void sell(it.itemId);
                                   }}
-                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/30 text-zinc-400 transition hover:border-cb-flame/45 hover:text-cb-flame disabled:cursor-not-allowed disabled:opacity-35"
+                                  className="flex w-full items-center justify-center gap-0.5 rounded-md bg-gradient-to-b from-red-500 to-[#b91c1c] py-1.5 text-[8px] font-black uppercase tracking-wide text-white shadow-[0_3px_10px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.14)] transition hover:brightness-110 active:brightness-95 disabled:cursor-not-allowed disabled:opacity-35 sm:gap-1 sm:rounded-lg sm:py-2 sm:text-[9px] md:gap-1.5 md:text-[10px]"
                                 >
-                                  <span className="text-[13px]" aria-hidden>
-                                    💰
-                                  </span>
+                                  <RoundedZapIcon className="h-2.5 w-2.5 shrink-0 text-white opacity-95 sm:h-3 sm:w-3 md:h-3.5 md:w-3.5" aria-hidden />
+                                  Продать
+                                  <SiteMoney
+                                    value={showRub}
+                                    className="text-[8px] font-black text-white sm:text-[9px] md:text-[10px]"
+                                    iconClassName="h-2 w-2 text-white sm:h-2.5 sm:w-2.5 md:h-3 md:w-3"
+                                  />
                                 </button>
-                                <a
-                                  href={marketUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  title="Поиск на Steam Market"
-                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-cb-stroke/50 bg-black/30 text-zinc-400 transition hover:border-cb-flame/45 hover:text-cb-flame"
-                                >
-                                  <svg
-                                    className="h-3.5 w-3.5"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth={2}
-                                    aria-hidden
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M13.5 4.5H4.5A2.25 2.25 0 002.25 6.75v12A2.25 2.25 0 004.5 21h12a2.25 2.25 0 002.25-2.25V11.25M7.5 16.5L21 3m0 0h-5.25M21 3v5.25"
-                                    />
-                                  </svg>
-                                </a>
                               </div>
                             </li>
                           );
@@ -943,6 +1052,16 @@ export default function ProfilePage() {
                         Инвентарь пуст. Откройте кейс на главной.
                       </div>
                     )}
+
+                    {me.inventory.length > INVENTORY_ITEMS_PER_PAGE ? (
+                      <div className="mt-8 border-t border-cb-stroke/30 pt-6">
+                        <InventoryPaginationBar
+                          currentPage={safeInventoryPage}
+                          totalPages={inventoryTotalPages}
+                          onPageChange={goInventoryPage}
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { normRarity, rarityBar, rarityCardFill } from "@/components/CaseRoulette";
 import { preferHighResSteamEconomyImage, SKIN_IMG_QUALITY_CLASS } from "@/lib/steamImage";
 import type { LiveDrop } from "@/hooks/useLiveDrops";
@@ -23,6 +24,52 @@ function DropRow({ d }: { d: LiveDrop }) {
   const { weapon, skin } = splitItemDisplay(d.item);
   const fromUpgrade = d.source === "upgrade";
 
+  const profileHref = d.steamId ? `/user/${encodeURIComponent(d.steamId)}` : null;
+  const profileLabel = `Профиль игрока ${d.user}: ${weapon || d.item}`;
+
+  const body = (
+    <>
+      <p
+        className={`mb-1 line-clamp-1 w-full text-center text-[9px] font-black uppercase tracking-wide sm:text-[10px] ${profileHref ? "text-cb-flame/95" : "font-semibold text-zinc-500"}`}
+      >
+        {d.user}
+      </p>
+      <div className="relative min-h-[4rem] w-full max-w-[5.5rem] flex-1 sm:min-h-[4.5rem] sm:max-w-[6rem]">
+        {d.image ? (
+          <Image
+            src={preferHighResSteamEconomyImage(d.image) ?? d.image}
+            alt=""
+            fill
+            draggable={false}
+            className={`pointer-events-none object-contain object-center drop-shadow-[0_4px_14px_rgba(0,0,0,0.45)] ${SKIN_IMG_QUALITY_CLASS}`}
+            sizes="112px"
+            quality={100}
+            unoptimized
+          />
+        ) : (
+          <div className="flex h-full min-h-[3.5rem] items-center justify-center text-[10px] font-bold text-zinc-400">
+            CS
+          </div>
+        )}
+      </div>
+      <div className="mt-auto w-full space-y-0.5 pt-1 text-center">
+        {fromUpgrade ? (
+          <p className="mb-1 text-[8px] font-black uppercase tracking-[0.14em] text-cb-flame/95">
+            Выпало в апгрейде
+          </p>
+        ) : null}
+        <p className="line-clamp-2 text-[10px] font-semibold leading-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] sm:text-[11px]">
+          {weapon || d.item}
+        </p>
+        {skin ? (
+          <p className="line-clamp-2 text-[9px] font-medium leading-snug text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] sm:text-[10px]">
+            {skin}
+          </p>
+        ) : null}
+      </div>
+    </>
+  );
+
   return (
     <div
       className={`flex min-h-[7.75rem] overflow-hidden border-b border-black/45 last:border-b-0 sm:min-h-[8.25rem] ${fill}`}
@@ -31,40 +78,20 @@ function DropRow({ d }: { d: LiveDrop }) {
         className={`w-1 shrink-0 self-stretch shadow-[2px_0_10px_rgba(0,0,0,0.35)] sm:w-1 ${bar}`}
         aria-hidden
       />
-      <div className="flex min-w-0 flex-1 flex-col items-center px-2 pb-2 pt-2.5 sm:px-2.5 sm:pb-2.5 sm:pt-3">
-        <div className="relative min-h-[4rem] w-full max-w-[5.5rem] flex-1 sm:min-h-[4.5rem] sm:max-w-[6rem]">
-          {d.image ? (
-            <Image
-              src={preferHighResSteamEconomyImage(d.image) ?? d.image}
-              alt=""
-              fill
-              className={`object-contain object-center drop-shadow-[0_4px_14px_rgba(0,0,0,0.45)] ${SKIN_IMG_QUALITY_CLASS}`}
-              sizes="112px"
-              quality={100}
-              unoptimized
-            />
-          ) : (
-            <div className="flex h-full min-h-[3.5rem] items-center justify-center text-[10px] font-bold text-zinc-400">
-              CS
-            </div>
-          )}
+      {profileHref ? (
+        <Link
+          href={profileHref}
+          aria-label={profileLabel}
+          title="Профиль, статистика и история предметов"
+          className="flex min-w-0 flex-1 cursor-pointer flex-col items-center px-2 pb-2 pt-2.5 outline-none transition-colors hover:bg-white/[0.05] focus-visible:bg-white/[0.05] focus-visible:ring-2 focus-visible:ring-cb-flame/50 sm:px-2.5 sm:pb-2.5 sm:pt-3"
+        >
+          {body}
+        </Link>
+      ) : (
+        <div className="flex min-w-0 flex-1 flex-col items-center px-2 pb-2 pt-2.5 transition-colors hover:bg-white/[0.03] sm:px-2.5 sm:pb-2.5 sm:pt-3">
+          {body}
         </div>
-        <div className="mt-auto w-full space-y-0.5 pt-1 text-center">
-          {fromUpgrade ? (
-            <p className="mb-1 text-[8px] font-black uppercase tracking-[0.14em] text-cb-flame/95">
-              Выпало в апгрейде
-            </p>
-          ) : null}
-          <p className="line-clamp-2 text-[10px] font-semibold leading-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] sm:text-[11px]">
-            {weapon || d.item}
-          </p>
-          {skin ? (
-            <p className="line-clamp-2 text-[9px] font-medium leading-snug text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] sm:text-[10px]">
-              {skin}
-            </p>
-          ) : null}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -115,7 +142,17 @@ export function LiveDropsRail({ drops, children }: Props) {
                       <span
                         className={`h-2 w-2 shrink-0 rounded-full ${rarityBar[normRarity(d.rarity)] || rarityBar.common}`}
                       />
-                      <span className="font-semibold text-cb-flame">{d.user}</span>
+                      {d.steamId ? (
+                        <Link
+                          href={`/user/${encodeURIComponent(d.steamId)}`}
+                          className="font-semibold text-cb-flame underline-offset-2 hover:underline"
+                          title="Профиль игрока"
+                        >
+                          {d.user}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold text-cb-flame">{d.user}</span>
+                      )}
                       <span className="text-zinc-600">→</span>
                       <span className="text-zinc-200">{label}</span>
                       {fromUpgrade ? (

@@ -15,10 +15,12 @@ export function SitePriceBadge({
   value,
   size = "md",
   className = "",
+  title,
 }: {
   value: number | null | undefined;
   size?: "sm" | "md";
   className?: string;
+  title?: string;
 }) {
   const sizeCls =
     size === "sm"
@@ -30,7 +32,7 @@ export function SitePriceBadge({
       : "h-[1.05em] w-[1.05em] max-h-[19px] max-w-[19px] shrink-0 text-white";
 
   return (
-    <span className={`${pillBase} ${sizeCls} ${className}`.trim()}>
+    <span className={`${pillBase} ${sizeCls} ${className}`.trim()} title={title}>
       <span className="tabular-nums leading-none">{formatRub(value)}</span>
       <RoundedZapIcon className={iconCls} />
     </span>

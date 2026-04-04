@@ -7,6 +7,8 @@ import { apiBase, apiFetch } from "@/lib/api";
 export type LiveDrop = {
   id: string;
   user: string;
+  /** Для перехода в публичный профиль; в старых записях буфера может отсутствовать */
+  steamId?: string | null;
   item: string;
   rarity: string;
   caseName: string;

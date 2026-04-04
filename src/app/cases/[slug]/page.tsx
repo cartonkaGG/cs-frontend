@@ -13,6 +13,7 @@ import {
   type RouletteItem,
 } from "@/components/CaseRoulette";
 import { CaseNeonRingFrame } from "@/components/CaseNeonRingFrame";
+import { RoundedZapIcon } from "@/components/icons/RoundedZapIcon";
 import { SiteMoney } from "@/components/SiteMoney";
 import { SitePriceBadge } from "@/components/SitePriceBadge";
 import { SiteShell } from "@/components/SiteShell";
@@ -201,8 +202,9 @@ function BatchResultMiniCard({
         onClick={() => {
           void onSell();
         }}
-        className="mx-2 mb-2 mt-1.5 shrink-0 rounded-lg bg-emerald-600 py-2 text-[10px] font-bold text-white transition hover:bg-emerald-500 sm:text-xs"
+        className="mx-2 mb-2 mt-1.5 flex shrink-0 items-center justify-center gap-1 rounded-lg bg-gradient-to-b from-red-500 to-[#b91c1c] py-2 text-[10px] font-black uppercase tracking-wide text-white shadow-[0_4px_14px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.14)] transition hover:brightness-110 active:brightness-95 disabled:opacity-45 sm:text-[11px]"
       >
+        <RoundedZapIcon className="h-3 w-3 shrink-0 text-white opacity-95 sm:h-3.5 sm:w-3.5" aria-hidden />
         Продать
       </button>
     </div>
@@ -859,9 +861,7 @@ export default function CaseOpenPage() {
                             }}
                             className={`${SITE_MONEY_CTA_CLASS} sm:px-5`}
                           >
-                            <span className="text-base leading-none opacity-90" aria-hidden>
-                              🛒
-                            </span>
+                            <RoundedZapIcon className="h-[1.15em] w-[1.15em] shrink-0 text-white opacity-95" aria-hidden />
                             Продать за{" "}
                             <SiteMoney value={drop.item.sellPrice} iconClassName="h-[1.1em] w-[1.1em] text-white" />
                           </button>
@@ -920,9 +920,7 @@ export default function CaseOpenPage() {
                             }}
                             className={`${SITE_MONEY_CTA_CLASS} disabled:opacity-45 sm:px-5`}
                           >
-                            <span className="text-base leading-none opacity-90" aria-hidden>
-                              🛒
-                            </span>
+                            <RoundedZapIcon className="h-[1.15em] w-[1.15em] shrink-0 text-white opacity-95" aria-hidden />
                             Продать всё за{" "}
                             <SiteMoney value={batchSellTotalRub} iconClassName="h-[1.1em] w-[1.1em] text-white" />
                           </button>

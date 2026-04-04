@@ -211,7 +211,7 @@ export function SiteShell({ children }: Props) {
         <div className="ml-auto flex flex-wrap items-center gap-3 text-sm">
           {me && (
             <div className="hidden items-stretch lg:flex">
-              <div className="flex items-center gap-1.5 rounded-3xl border border-cb-stroke/70 bg-gradient-to-br from-zinc-950/95 via-cb-panel/35 to-black/90 p-1 pl-3 shadow-[inset_0_1px_0_rgba(255,49,49,0.1),0_4px_24px_rgba(0,0,0,0.35)]">
+              <div className="flex items-center gap-1.5 rounded-3xl bg-gradient-to-br from-zinc-950/95 via-cb-panel/35 to-black/90 p-1 pl-3 shadow-[inset_0_1px_0_rgba(255,49,49,0.1),0_4px_24px_rgba(0,0,0,0.35)]">
                 <div className="flex min-w-0 flex-col justify-center gap-0.5 py-1.5 pr-1">
                   <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-500">
                     Баланс
@@ -226,7 +226,7 @@ export function SiteShell({ children }: Props) {
                 <button
                   type="button"
                   onClick={() => setCryptoTopUpOpen(true)}
-                  className={`${SITE_MONEY_CTA_COMPACT_CLASS} shrink-0 focus-visible:outline focus-visible:ring-2 focus-visible:ring-cb-flame/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950`}
+                  className={`${SITE_MONEY_CTA_COMPACT_CLASS} shrink-0 focus-visible:outline focus-visible:ring-2 focus-visible:ring-cb-flame/50 focus-visible:ring-offset-0`}
                 >
                   Пополнить
                 </button>

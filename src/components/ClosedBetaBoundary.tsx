@@ -123,12 +123,12 @@ export function ClosedBetaBoundary({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    if (pathname?.startsWith("/auth/callback")) return;
+    if (pathname?.startsWith("/auth/callback") || pathname?.startsWith("/user/")) return;
     void refresh();
   }, [refresh, pathname]);
 
   useEffect(() => {
-    if (pathname?.startsWith("/auth/callback")) {
+    if (pathname?.startsWith("/auth/callback") || pathname?.startsWith("/user/")) {
       document.documentElement.removeAttribute("data-closed-beta-gate");
       return;
     }
@@ -144,13 +144,19 @@ export function ClosedBetaBoundary({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "cd_token" && !pathname?.startsWith("/auth/callback")) void refresh();
+      if (
+        e.key === "cd_token" &&
+        !pathname?.startsWith("/auth/callback") &&
+        !pathname?.startsWith("/user/")
+      ) {
+        void refresh();
+      }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [refresh, pathname]);
 
-  if (pathname?.startsWith("/auth/callback")) {
+  if (pathname?.startsWith("/auth/callback") || pathname?.startsWith("/user/")) {
     return <>{children}</>;
   }
 
