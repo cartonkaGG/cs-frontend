@@ -12,11 +12,18 @@ import { SiteMoney } from "@/components/SiteMoney";
 import { apiFetch } from "@/lib/api";
 import { preferHighResSteamEconomyImage, SKIN_IMG_QUALITY_CLASS } from "@/lib/steamImage";
 import { SITE_MONEY_CTA_CLASS } from "@/lib/siteMoneyStyles";
-import {
-  PublicStatIconCases,
-  PublicStatIconUpgrades,
-  PublicStatIconWithdraw,
-} from "@/components/icons/PublicProfileStatIcons";
+import { PublicProfileStatHeroArt } from "@/components/PublicProfileStatHeroArt";
+
+function ruPredmetCountLabel(n: number): string {
+  const k = Math.floor(Math.abs(n)) % 100;
+  const d = k % 10;
+  let w: string;
+  if (k > 10 && k < 20) w = "предметов";
+  else if (d === 1) w = "предмет";
+  else if (d >= 2 && d <= 4) w = "предмета";
+  else w = "предметов";
+  return `${n} ${w}`;
+}
 
 /** 8 карток у ряд × 4 ряди на сторінці */
 const ACTIVITY_PAGE_SIZE = 32;
@@ -209,23 +216,28 @@ function PublicUserBody({ steamId }: { steamId: string }) {
             </div>
 
             {loading ? (
-              <div className="space-y-5 py-2 motion-reduce:animate-none animate-pp-fade-in" aria-busy>
-                <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
-                  <div className="h-[5.25rem] w-[5.25rem] shrink-0 rounded-xl bg-zinc-800/75 motion-reduce:animate-none animate-pp-skeleton sm:h-24 sm:w-24" />
-                  <div className="flex w-full max-w-md flex-1 flex-col items-center space-y-2 sm:items-start">
-                    <div className="h-6 w-44 max-w-full rounded-lg bg-zinc-800/65 motion-reduce:animate-none animate-pp-skeleton" />
-                    <div className="h-2.5 w-52 max-w-full rounded bg-zinc-800/50 motion-reduce:animate-none animate-pp-skeleton" />
-                    <div className="h-9 w-32 rounded-lg bg-zinc-800/60 motion-reduce:animate-none animate-pp-skeleton" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {[0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="h-[4.5rem] rounded-lg bg-zinc-800/55 motion-reduce:animate-none animate-pp-skeleton"
-                      style={{ animationDelay: `${i * 120}ms` }}
-                    />
-                  ))}
+              <div
+                className="grid grid-cols-1 gap-3 py-1 motion-reduce:animate-none animate-pp-fade-in lg:grid-cols-12"
+                aria-busy
+              >
+                <div className="h-44 rounded-xl bg-zinc-800/75 motion-reduce:animate-none animate-pp-skeleton lg:col-span-4" />
+                <div
+                  className="h-52 rounded-xl bg-zinc-800/65 motion-reduce:animate-none animate-pp-skeleton lg:col-span-4"
+                  style={{ animationDelay: "80ms" }}
+                />
+                <div className="flex flex-col gap-2 lg:col-span-4">
+                  <div
+                    className="h-24 rounded-xl bg-zinc-800/55 motion-reduce:animate-none animate-pp-skeleton"
+                    style={{ animationDelay: "140ms" }}
+                  />
+                  <div
+                    className="h-24 rounded-xl bg-zinc-800/55 motion-reduce:animate-none animate-pp-skeleton"
+                    style={{ animationDelay: "200ms" }}
+                  />
+                  <div
+                    className="h-24 rounded-xl bg-zinc-800/55 motion-reduce:animate-none animate-pp-skeleton"
+                    style={{ animationDelay: "260ms" }}
+                  />
                 </div>
               </div>
             ) : err ? (
@@ -240,144 +252,172 @@ function PublicUserBody({ steamId }: { steamId: string }) {
               </div>
             ) : data ? (
               <>
-                <div className="motion-reduce:animate-none animate-pp-fade-up flex flex-col items-center gap-3 border-b border-cb-stroke/40 pb-5 sm:flex-row sm:items-start sm:gap-5">
-                  <div className="relative shrink-0">
-                    <div
-                      className="pointer-events-none absolute -inset-[2px] rounded-xl opacity-95 motion-reduce:hidden"
-                      aria-hidden
-                    >
-                      <div className="h-full w-full rounded-xl bg-[conic-gradient(from_0deg,#ea5808,#a855f7,#0ea5e9,#f97316,#ea5808)] motion-reduce:animate-none animate-pp-ring-spin blur-[0.75px]" />
+                <div className="motion-reduce:animate-none animate-pp-fade-up flex flex-col gap-3 border-b border-cb-stroke/35 pb-5 lg:grid lg:grid-cols-12 lg:items-stretch lg:gap-3">
+                  {/* Ліва колонка — користувач + кейси */}
+                  <div className="flex flex-col items-center gap-3 rounded-xl border border-cb-stroke/50 bg-gradient-to-b from-white/[0.04] to-black/35 p-4 shadow-inner lg:col-span-4 lg:items-stretch">
+                    <div className="flex w-full flex-col items-center gap-3 sm:flex-row sm:items-center sm:justify-start lg:flex-col lg:items-center">
+                      <div className="relative shrink-0">
+                        <div
+                          className="pointer-events-none absolute -inset-[2px] rounded-xl opacity-90 motion-reduce:hidden"
+                          aria-hidden
+                        >
+                          <div className="h-full w-full rounded-xl bg-[conic-gradient(from_0deg,#ea5808,#a855f7,#0ea5e9,#f97316,#ea5808)] blur-[0.75px]" />
+                        </div>
+                        <div className="relative h-[4.75rem] w-[4.75rem] overflow-hidden rounded-xl border border-white/10 bg-black/55 shadow-lg ring-1 ring-white/[0.06] sm:h-[5.25rem] sm:w-[5.25rem]">
+                          {data.avatar ? (
+                            <Image
+                              src={data.avatar}
+                              alt=""
+                              fill
+                              className="object-cover"
+                              sizes="96px"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-lg text-zinc-600">?</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="min-w-0 flex-1 text-center sm:text-left lg:text-center">
+                        <h1 className="text-base font-black tracking-tight text-white sm:text-lg">{data.displayName}</h1>
+                        <p
+                          className="mt-0.5 font-mono text-[10px] text-zinc-500"
+                          title={data.steamId}
+                        >
+                          ID {data.steamId.length > 8 ? `…${data.steamId.slice(-6)}` : data.steamId}
+                        </p>
+                      </div>
                     </div>
-                    <div className="relative h-[5.25rem] w-[5.25rem] overflow-hidden rounded-xl border border-white/10 bg-black/55 shadow-[0_10px_32px_-12px_rgba(0,0,0,0.9)] ring-1 ring-white/[0.06] transition-[transform,box-shadow] duration-500 group-hover/card:scale-[1.02] group-hover/card:shadow-[0_14px_40px_-10px_rgba(234,88,12,0.2)] motion-reduce:transition-none sm:h-24 sm:w-24">
-                      {data.avatar ? (
-                        <Image
-                          src={data.avatar}
-                          alt=""
-                          fill
-                          className="object-cover"
-                          sizes="96px"
-                          unoptimized
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-xl text-zinc-600">?</div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="min-w-0 flex-1 text-center sm:text-left">
-                    <h1 className="text-lg font-black tracking-tight text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.45)] sm:text-xl">
-                      {data.displayName}
-                    </h1>
-                    <p className="mt-1 font-mono text-[10px] text-zinc-500">Steam ID: {data.steamId}</p>
                     <a
                       href={`https://steamcommunity.com/profiles/${encodeURIComponent(data.steamId)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-sky-500/40 bg-gradient-to-b from-sky-500/15 to-sky-950/30 px-3 py-2 text-xs font-bold text-sky-50 shadow shadow-sky-950/40 transition-all duration-300 hover:-translate-y-0.5 hover:border-sky-400/55 hover:shadow-md hover:shadow-sky-500/12 active:translate-y-0 motion-reduce:hover:translate-y-0 sm:justify-start sm:text-sm"
+                      className="mt-auto inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-sky-500/35 bg-sky-950/25 px-3 py-2 text-xs font-bold text-sky-100 transition hover:border-sky-400/50 hover:bg-sky-950/40"
                     >
-                      Профиль Steam
-                      <span className="text-xs font-normal text-sky-200/90" aria-hidden>
+                      Steam
+                      <span className="text-sky-300/80" aria-hidden>
                         ↗
                       </span>
                     </a>
                   </div>
-                </div>
 
-                {st ? (
-                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    <div className="group/stat motion-reduce:animate-none animate-pp-fade-up relative overflow-hidden rounded-lg border border-cb-stroke/50 bg-gradient-to-b from-white/[0.05] to-black/25 px-2 py-2.5 text-center shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-orange-500/40 hover:shadow-[0_10px_28px_-14px_rgba(234,88,12,0.24)] motion-reduce:hover:translate-y-0 sm:px-3">
-                      <div
-                        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-400/35 to-transparent opacity-0 transition-opacity duration-300 group-hover/stat:opacity-100"
-                        aria-hidden
-                      />
-                      <div className="mx-auto mb-0.5 flex h-8 w-8 items-center justify-center text-orange-400 motion-reduce:animate-none animate-pp-stat-bob">
-                        <PublicStatIconCases className="h-5 w-5" />
-                      </div>
-                      <p className="text-[9px] font-bold uppercase tracking-wide text-zinc-500">Кейсы</p>
-                      <p className="mt-0.5 text-base font-black tabular-nums text-white">{st.casesOpened}</p>
-                    </div>
-                    <div className="group/stat motion-reduce:animate-none animate-pp-fade-up relative overflow-hidden rounded-lg border border-cb-stroke/50 bg-gradient-to-b from-white/[0.05] to-black/25 px-2 py-2.5 text-center shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-500/40 hover:shadow-[0_10px_28px_-14px_rgba(139,92,246,0.2)] motion-reduce:hover:translate-y-0 sm:px-3 [animation-delay:90ms]">
-                      <div
-                        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/35 to-transparent opacity-0 transition-opacity duration-300 group-hover/stat:opacity-100"
-                        aria-hidden
-                      />
-                      <div className="mx-auto mb-0.5 flex h-8 w-8 items-center justify-center text-violet-300 motion-reduce:animate-none animate-pp-stat-zap [animation-delay:120ms]">
-                        <PublicStatIconUpgrades className="h-5 w-5" />
-                      </div>
-                      <p className="text-[9px] font-bold uppercase tracking-wide text-zinc-500">Апгрейды</p>
-                      <p className="mt-0.5 text-base font-black tabular-nums text-white">{st.upgradesDone}</p>
-                    </div>
-                    <div className="group/stat motion-reduce:animate-none animate-pp-fade-up relative col-span-2 overflow-hidden rounded-lg border border-cb-stroke/50 bg-gradient-to-b from-white/[0.05] to-black/25 px-2 py-2.5 text-center shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-sky-500/40 hover:shadow-[0_10px_28px_-14px_rgba(14,165,233,0.18)] motion-reduce:hover:translate-y-0 sm:col-span-1 sm:px-3 [animation-delay:180ms]">
-                      <div
-                        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/35 to-transparent opacity-0 transition-opacity duration-300 group-hover/stat:opacity-100"
-                        aria-hidden
-                      />
-                      <div className="mx-auto mb-0.5 flex h-8 w-8 items-center justify-center text-sky-300 motion-reduce:animate-none animate-pp-stat-send [animation-delay:240ms]">
-                        <PublicStatIconWithdraw className="h-5 w-5" />
-                      </div>
-                      <p className="text-[9px] font-bold uppercase tracking-wide text-zinc-500">Выводы (Steam)</p>
-                      <p className="mt-0.5 text-base font-black tabular-nums text-white">
-                        {st.withdrawalsCompletedCount ?? 0}
-                      </p>
-                      <p className="mt-1 flex flex-wrap items-center justify-center gap-1">
-                        <SiteMoney
-                          value={st.withdrawalsCompletedTotalRub ?? 0}
-                          className="text-xs font-bold text-zinc-200"
-                          iconClassName="h-3 w-3 text-orange-400"
-                        />
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
-
-                {data.bestEverItem && data.bestEverItem.name ? (
-                  <div className="motion-reduce:animate-none animate-pp-fade-up relative mt-4 overflow-hidden rounded-xl border border-amber-500/35 bg-gradient-to-br from-amber-950/35 via-amber-950/[0.07] to-black/50 p-3 shadow-[0_0_40px_-18px_rgba(245,158,11,0.32)] transition-[box-shadow,transform] duration-500 hover:shadow-[0_0_48px_-16px_rgba(251,191,36,0.26)] motion-reduce:transition-none sm:p-4 [animation-delay:220ms]">
-                    <div
-                      className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-amber-400/10 blur-2xl motion-reduce:hidden"
-                      aria-hidden
-                    />
-                    <div
-                      className="pointer-events-none absolute bottom-0 left-0 h-20 w-20 rounded-full bg-orange-600/10 blur-2xl motion-reduce:hidden"
-                      aria-hidden
-                    />
-                    <p className="relative text-[9px] font-black uppercase tracking-[0.2em] text-amber-200/90">
-                      Лучший дроп
-                    </p>
-                    <div className="relative mt-2 flex gap-3">
-                      <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-amber-500/20 bg-black/30 shadow-inner transition-transform duration-500 hover:scale-105 motion-reduce:hover:scale-100">
-                        {data.bestEverItem.image ? (
-                          <Image
-                            src={preferHighResSteamEconomyImage(data.bestEverItem.image) ?? data.bestEverItem.image}
-                            alt=""
-                            fill
-                            className={`object-contain ${SKIN_IMG_QUALITY_CLASS}`}
-                            sizes="64px"
-                            quality={100}
-                            unoptimized
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center rounded-lg bg-black/40 text-zinc-600">
-                            ?
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="line-clamp-2 text-sm font-semibold text-white">{data.bestEverItem.name}</p>
-                        <p className="mt-1">
+                  {/* Центр — лучший дроп */}
+                  <div className="flex min-h-[12rem] flex-col lg:col-span-4 lg:min-h-[15rem]">
+                    {data.bestEverItem && data.bestEverItem.name ? (
+                      <div className="relative flex h-full min-h-[12rem] flex-col overflow-hidden rounded-xl border border-amber-500/35 bg-gradient-to-br from-amber-950/40 via-[#0a0a12] to-black/80 p-3 shadow-[0_0_36px_-14px_rgba(245,158,11,0.28)] sm:min-h-[15.5rem] sm:p-4 lg:min-h-0">
+                        <div className="relative z-[1] flex items-start justify-between gap-2">
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-200/95">
+                            Лучший дроп
+                          </p>
                           <SiteMoney
                             value={data.bestEverItem.sellPrice}
-                            className="text-xs font-bold text-amber-200"
-                            iconClassName="h-3.5 w-3.5 text-amber-400"
+                            className="text-sm font-black text-amber-100"
+                            iconClassName="h-4 w-4 text-amber-400"
                           />
-                        </p>
-                        {data.bestEverItem.source ? (
-                          <p className="mt-0.5 text-[9px] uppercase tracking-wide text-zinc-500">
-                            {data.bestEverItem.source === "upgrade" ? "Апгрейд" : "Кейс"}
+                        </div>
+                        <div className="relative z-[1] flex flex-1 items-center justify-center py-1 sm:py-2">
+                          <div className="relative h-[12.5rem] w-[94%] max-w-[20rem] sm:h-[14.75rem] sm:max-w-[24rem]">
+                            <div
+                              className="pointer-events-none absolute inset-0 z-0 overflow-visible motion-reduce:opacity-70"
+                              aria-hidden
+                            >
+                              <div className="absolute left-1/2 top-[46%] h-[72%] w-[58%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-b from-amber-300/45 via-amber-500/25 to-orange-600/10 blur-[40px] motion-reduce:blur-md sm:top-1/2 sm:h-[78%] sm:w-[62%] sm:blur-[52px]" />
+                              <div className="absolute left-1/2 top-[40%] h-[48%] w-[42%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-200/25 blur-[28px] motion-reduce:blur-sm sm:top-[38%]" />
+                            </div>
+                            {data.bestEverItem.image ? (
+                              <Image
+                                src={
+                                  preferHighResSteamEconomyImage(data.bestEverItem.image) ??
+                                  data.bestEverItem.image
+                                }
+                                alt=""
+                                fill
+                                className={`relative z-[1] object-contain object-center ${SKIN_IMG_QUALITY_CLASS} -rotate-6 drop-shadow-[0_14px_32px_rgba(0,0,0,0.6)] drop-shadow-[0_0_28px_rgba(251,191,36,0.5)] drop-shadow-[0_0_56px_rgba(245,158,11,0.22)] transition-transform duration-500 hover:-rotate-3 hover:scale-[1.03] motion-reduce:hover:scale-100`}
+                                sizes="(max-width:640px) 320px, 384px"
+                                quality={100}
+                                unoptimized
+                              />
+                            ) : (
+                              <div className="relative z-[1] flex h-full items-center justify-center rounded-xl bg-black/35 text-2xl text-zinc-600">
+                                ?
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="relative z-[1] mt-auto flex flex-wrap items-end justify-between gap-2 border-t border-amber-500/20 pt-2.5">
+                          <div className="min-w-0">
+                            <p className="line-clamp-2 text-left text-xs font-semibold leading-snug text-white sm:text-sm">
+                              {data.bestEverItem.name}
+                            </p>
+                            {data.bestEverItem.rarity ? (
+                              <p className="mt-0.5 text-left text-[10px] text-zinc-500">{data.bestEverItem.rarity}</p>
+                            ) : null}
+                          </div>
+                          {data.bestEverItem.source ? (
+                            <span
+                              className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                                data.bestEverItem.source === "upgrade"
+                                  ? "border-violet-500/40 bg-violet-950/50 text-violet-200/95"
+                                  : "border-emerald-500/40 bg-emerald-950/45 text-emerald-200/95"
+                              }`}
+                            >
+                              {data.bestEverItem.source === "upgrade" ? "Апгрейд" : "Кейс"}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-full min-h-[11rem] flex-col items-center justify-center rounded-xl border border-dashed border-cb-stroke/45 bg-black/25 p-4 text-center lg:min-h-[13.5rem]">
+                        <p className="text-xs text-zinc-500">Нет данных о лучшем предмете</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Права колонка — кейсы, вывод, апгрейды */}
+                  {st ? (
+                    <div className="flex flex-col gap-2 overflow-visible lg:col-span-4">
+                      <div className="group relative z-[1] flex items-center justify-between gap-2 overflow-visible rounded-xl border border-orange-500/25 bg-gradient-to-r from-black/40 to-orange-950/20 px-3 py-2.5 shadow-sm transition hover:border-orange-400/35 sm:py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-white">Открыто кейсов:</p>
+                          <p className="mt-1 text-xl font-black tabular-nums text-white">{st.casesOpened}</p>
+                        </div>
+                        <PublicProfileStatHeroArt variant="cases" />
+                      </div>
+                      <div className="group relative z-[2] flex items-center justify-between gap-2 overflow-visible rounded-xl border border-sky-500/25 bg-gradient-to-r from-black/40 to-sky-950/20 px-3 py-2.5 shadow-sm transition hover:border-sky-400/35 sm:py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-white">Выведено:</p>
+                          <p className="mt-0.5 text-xs text-zinc-500">
+                            {ruPredmetCountLabel(st.withdrawalsCompletedCount ?? 0)}
                           </p>
-                        ) : null}
+                          <div className="mt-1.5">
+                            <SiteMoney
+                              value={st.withdrawalsCompletedTotalRub ?? 0}
+                              className="text-sm font-black text-zinc-100"
+                              iconClassName="h-4 w-4 text-amber-400"
+                            />
+                          </div>
+                        </div>
+                        <PublicProfileStatHeroArt variant="withdraw" />
+                      </div>
+                      <div className="group relative z-[3] flex items-center justify-between gap-2 overflow-visible rounded-xl border border-violet-500/25 bg-gradient-to-r from-black/40 to-violet-950/20 px-3 py-2.5 shadow-sm transition hover:border-violet-400/35 sm:py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-white">Апгрейдов сделано:</p>
+                          <p className="mt-1 flex items-center gap-1.5 text-xl font-black tabular-nums text-white">
+                            <span
+                              className="inline-flex -translate-y-px flex-col text-[9px] font-black leading-[0.55] text-amber-400 motion-reduce:animate-none animate-pp-stat-zap"
+                              aria-hidden
+                            >
+                              <span>▲</span>
+                              <span>▲</span>
+                            </span>
+                            {st.upgradesDone}
+                          </p>
+                        </div>
+                        <PublicProfileStatHeroArt variant="upgrade" />
                       </div>
                     </div>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
 
                 <div id="public-activity" className="mt-6 scroll-mt-20">
                   <h2 className="text-sm font-black uppercase tracking-wide text-white">История предметов</h2>
