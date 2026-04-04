@@ -11,10 +11,43 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const SITE_DESCRIPTION =
+  "StormBattle CS2 (CS:GO) — сражайтесь с настоящими противниками, открывайте кейсы и забирайте самые ценные скины.";
+
+function siteMetadataBase(): URL | undefined {
+  const custom = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (custom) {
+    try {
+      return new URL(custom.endsWith("/") ? custom.slice(0, -1) : custom);
+    } catch {
+      /* ignore */
+    }
+  }
+  if (process.env.VERCEL_URL) {
+    try {
+      return new URL(`https://${process.env.VERCEL_URL}`);
+    } catch {
+      /* ignore */
+    }
+  }
+  return undefined;
+}
+
 export const metadata: Metadata = {
+  metadataBase: siteMetadataBase(),
   title: "StormBattle",
-  description:
-    "StormBattle CS2 (CS:GO) — сражайтесь с настоящими противниками, открывайте кейсы и забирайте самые ценные скины.",
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: "StormBattle",
+    description: SITE_DESCRIPTION,
+    type: "website",
+    locale: "ru_RU",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "StormBattle",
+    description: SITE_DESCRIPTION,
+  },
   icons: {
     icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
     apple: [{ url: "/favicon.svg", type: "image/svg+xml" }],
