@@ -102,7 +102,7 @@ export function HomePage() {
       )}
 
       {featured.length > 0 && (
-        <section className="border-t border-cb-stroke/80 bg-black/25 px-6 py-14">
+        <section className="border-t border-cb-stroke/80 bg-black/25 px-3 py-8 sm:px-6 sm:py-14">
           <div className="mx-auto max-w-7xl">
             <h2 className="mb-8 flex items-center gap-3 text-2xl font-bold text-white">
               <span className="h-1 w-10 rounded-full bg-gradient-to-r from-cb-flame to-transparent" />
@@ -124,7 +124,7 @@ export function HomePage() {
 
       <section
         id="cases"
-        className="scroll-mt-24 border-b border-cb-stroke bg-cb-panel/30 px-6 py-12"
+        className="scroll-mt-20 border-b border-cb-stroke bg-cb-panel/30 px-3 py-8 sm:scroll-mt-24 sm:px-6 sm:py-12"
       >
         <div className="mx-auto max-w-7xl">
           {error && <p className="mb-6 text-red-400">{error}</p>}

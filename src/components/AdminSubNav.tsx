@@ -47,6 +47,9 @@ export function AdminSubNav() {
       </span>
       {full && (
         <>
+          <Link href="/admin/stats" className={linkClass}>
+            Статистика
+          </Link>
           <Link href="/admin/cases" className={linkClass}>
             Кейсы
           </Link>

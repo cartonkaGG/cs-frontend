@@ -168,7 +168,7 @@ export function LiveDropsRail({ drops, children }: Props) {
           )}
         </div>
 
-        <main className="min-h-0 flex-1 lg:min-h-0 lg:overflow-y-auto lg:overscroll-y-contain">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain lg:min-h-0">
           {children}
         </main>
       </div>

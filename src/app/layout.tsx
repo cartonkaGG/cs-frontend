@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthModalHost } from "@/components/AuthModalHost";
@@ -33,6 +33,14 @@ function siteMetadataBase(): URL | undefined {
   return undefined;
 }
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#020204",
+  colorScheme: "dark",
+};
+
 export const metadata: Metadata = {
   metadataBase: siteMetadataBase(),
   title: "StormBattle",
@@ -62,7 +70,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" className={`dark lg:h-full ${jetbrainsMono.variable}`}>
-      <body className="min-h-screen bg-[#020204] text-zinc-100 antialiased lg:h-dvh lg:overflow-hidden">
+      <body className="min-h-screen bg-[#020204] text-zinc-100 antialiased [-webkit-tap-highlight-color:transparent] lg:h-dvh lg:overflow-hidden">
         <div className="cb-backdrop" aria-hidden>
           <StormAtmosphere />
           <span className="cb-backdrop-vignette" />
