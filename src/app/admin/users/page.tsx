@@ -106,6 +106,20 @@ type AdminUserResponse = {
     createdAt?: string | null;
     updatedAt?: string | null;
     upgradeRunBaseline?: number | null;
+    legalAcceptance?: {
+      termsVersion: number | null;
+      privacyVersion: number | null;
+      cookiesVersion: number | null;
+      acceptedAt: string | null;
+    } | null;
+    /** Останній рядок у Mongo LegalAcceptanceLog */
+    legalAcceptanceAudit?: {
+      acceptedAt: string | null;
+      termsVersion: number | null;
+      privacyVersion: number | null;
+      cookiesVersion: number | null;
+      loggedAt: string | null;
+    } | null;
     inventory: InventoryItem[];
     bestItem: InventoryItem | null;
   };
@@ -302,6 +316,59 @@ export default function AdminUsersPage() {
                       upgrade baseline: {formatSiteAmount(data.user.upgradeRunBaseline)}
                     </p>
                   ) : null}
+                  <div className="mt-3 rounded-xl border border-cb-stroke/80 bg-black/35 p-3 sm:p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                      Умови використання сайту
+                    </p>
+                    {data.user.legalAcceptance ? (
+                      <>
+                        <p className="mt-2 text-sm font-semibold text-emerald-300/95">
+                          Користувач погодився з умовами використання сайту
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-400">
+                          У профілі збережено прийняті версії документів (користувача в БД).
+                        </p>
+                        <p className="mt-2 font-mono text-[11px] leading-relaxed text-emerald-200/85">
+                          Користувацька угода: v{data.user.legalAcceptance.termsVersion ?? "—"} ·
+                          Конфіденційність: v{data.user.legalAcceptance.privacyVersion ?? "—"} · Cookie: v
+                          {data.user.legalAcceptance.cookiesVersion ?? "—"}
+                        </p>
+                        {data.user.legalAcceptance.acceptedAt ? (
+                          <p className="mt-1 text-[11px] text-zinc-500">
+                            Час прийняття:{" "}
+                            {data.user.legalAcceptance.acceptedAt.replace("T", " ").slice(0, 19)} UTC
+                          </p>
+                        ) : null}
+                      </>
+                    ) : (
+                      <p className="mt-2 text-sm text-zinc-500">
+                        Немає запису про згоду (старий акаунт або режим без Mongo).
+                      </p>
+                    )}
+                    {data.user.legalAcceptanceAudit ? (
+                      <div className="mt-3 border-t border-white/10 pt-3">
+                        <p className="text-xs font-semibold text-sky-300/90">
+                          Дубль у журналі БД (колекція LegalAcceptanceLog)
+                        </p>
+                        <p className="mt-1 font-mono text-[11px] text-zinc-400">
+                          v{data.user.legalAcceptanceAudit.termsVersion ?? "—"} / v
+                          {data.user.legalAcceptanceAudit.privacyVersion ?? "—"} / v
+                          {data.user.legalAcceptanceAudit.cookiesVersion ?? "—"}
+                        </p>
+                        {data.user.legalAcceptanceAudit.loggedAt ? (
+                          <p className="mt-0.5 text-[10px] text-zinc-600">
+                            запис у журнал:{" "}
+                            {data.user.legalAcceptanceAudit.loggedAt.replace("T", " ").slice(0, 19)} UTC
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : data.user.legalAcceptance ? (
+                      <p className="mt-2 text-[10px] text-amber-200/80">
+                        Журнал LegalAcceptanceLog порожній або Mongo недоступна — у профілі згода все одно
+                        збережена.
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
               </div>
               <div className="grid w-full max-w-xl grid-cols-2 gap-3 text-sm sm:grid-cols-3">

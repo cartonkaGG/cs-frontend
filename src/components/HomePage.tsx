@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CaseCard, type CaseSummary } from "@/components/CaseCard";
+import { PartnersLegalFooter } from "@/components/PartnersLegalFooter";
 import { PromoHeroBanner } from "@/components/PromoHeroBanner";
 import { SiteShell } from "@/components/SiteShell";
 import { CATEGORY_LABELS, CATEGORY_ORDER } from "@/lib/categories";
@@ -177,28 +177,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section
-        className="border-t border-cb-stroke/70 bg-gradient-to-b from-black/90 to-zinc-950/95 px-4 py-8"
-        aria-label="Платёжные системы"
-      >
-        <div className="mx-auto flex max-w-7xl justify-center">
-          <a
-            href="https://freekassa.net"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex rounded-lg bg-black/70 p-2 shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_4px_20px_rgba(0,0,0,0.5)] transition hover:bg-black/85 hover:shadow-[0_0_0_1px_rgba(255,49,49,0.25)]"
-          >
-            <Image
-              src="https://cdn.freekassa.net/banners/small-dark-1.png"
-              title="Прием платежей"
-              alt=""
-              width={88}
-              height={31}
-              className="block h-[31px] w-auto max-w-[min(100vw-2rem,320px)] object-contain object-center sm:h-9 sm:max-h-9"
-            />
-          </a>
-        </div>
-      </section>
+      <PartnersLegalFooter />
     </SiteShell>
   );
 }

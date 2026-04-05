@@ -70,8 +70,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`dark lg:h-full ${jetbrainsMono.variable}`}>
-      <body className="min-h-screen bg-[#020204] text-zinc-100 antialiased [-webkit-tap-highlight-color:transparent] lg:h-dvh lg:overflow-hidden">
+    <html lang="ru" className={`dark min-h-dvh ${jetbrainsMono.variable}`}>
+      <body className="relative min-h-dvh bg-[#020204] text-zinc-100 antialiased [-webkit-tap-highlight-color:transparent]">
         <div className="cb-backdrop" aria-hidden>
           <StormAtmosphere />
           <span className="cb-backdrop-vignette" />
@@ -79,7 +79,7 @@ export default function RootLayout({
           <span className="cb-backdrop-orb cb-backdrop-orb--a" />
           <span className="cb-backdrop-orb cb-backdrop-orb--b" />
         </div>
-        <div className="relative z-10 min-h-screen lg:h-full lg:min-h-0">
+        <div className="relative z-10 min-w-0">
           <ClosedBetaBoundary>{children}</ClosedBetaBoundary>
         </div>
         <AuthModalHost />

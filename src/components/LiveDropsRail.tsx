@@ -102,8 +102,8 @@ export function LiveDropsRail({ drops, children }: Props) {
   const loop = drops.length > 0 ? [...drops, ...drops] : [];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:h-full lg:min-h-0 lg:flex-row">
-      <aside className="relative hidden h-auto min-h-0 w-[min(13rem,100%)] shrink-0 flex-col border-r border-cb-stroke/80 bg-[#06060c]/95 lg:flex lg:h-full lg:min-h-0">
+    <div className="flex w-full flex-col lg:flex-row lg:items-start">
+      <aside className="relative hidden w-[min(13rem,100%)] shrink-0 flex-col border-r border-cb-stroke/80 bg-[#06060c]/95 lg:flex">
         <div className="min-h-0 flex-1 overflow-hidden px-1.5 py-1.5 sm:px-2 sm:py-2">
           {drops.length === 0 ? (
             <p className="p-3 text-center text-[11px] leading-relaxed text-zinc-500">
@@ -119,7 +119,7 @@ export function LiveDropsRail({ drops, children }: Props) {
         </div>
       </aside>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <div className="relative shrink-0 overflow-hidden border-b border-cb-stroke/80 bg-[#06060c]/85 py-2 backdrop-blur-md lg:hidden">
           <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-10 bg-gradient-to-r from-[#020204] to-transparent" />
           <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-10 bg-gradient-to-l from-[#020204] to-transparent" />
@@ -168,7 +168,7 @@ export function LiveDropsRail({ drops, children }: Props) {
           )}
         </div>
 
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain lg:min-h-0">
+        <main className="min-w-0 flex-1">
           {children}
         </main>
       </div>

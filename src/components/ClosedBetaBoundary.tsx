@@ -50,9 +50,17 @@ type MeSession = {
 
 type GateView = "loading" | "site" | "beta" | "sessionErr";
 
+function isClosedBetaPublicPath(p: string | null | undefined) {
+  return (
+    Boolean(p?.startsWith("/auth/callback")) ||
+    Boolean(p?.startsWith("/user/")) ||
+    Boolean(p?.startsWith("/legal/"))
+  );
+}
+
 function GateScrim({ children }: { children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-[#020204] text-zinc-100">{children}</div>
+    <div className="fixed inset-0 z-[60] flex min-h-0 flex-col bg-[#020204] text-zinc-100">{children}</div>
   );
 }
 
@@ -124,12 +132,12 @@ export function ClosedBetaBoundary({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    if (pathname?.startsWith("/auth/callback") || pathname?.startsWith("/user/")) return;
+    if (isClosedBetaPublicPath(pathname)) return;
     void refresh();
   }, [refresh, pathname]);
 
   useEffect(() => {
-    if (pathname?.startsWith("/auth/callback") || pathname?.startsWith("/user/")) {
+    if (isClosedBetaPublicPath(pathname)) {
       document.documentElement.removeAttribute("data-closed-beta-gate");
       return;
     }
@@ -145,11 +153,7 @@ export function ClosedBetaBoundary({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (
-        e.key === "cd_token" &&
-        !pathname?.startsWith("/auth/callback") &&
-        !pathname?.startsWith("/user/")
-      ) {
+      if (e.key === "cd_token" && !isClosedBetaPublicPath(pathname)) {
         void refresh();
       }
     };
@@ -157,7 +161,7 @@ export function ClosedBetaBoundary({ children }: { children: React.ReactNode }) 
     return () => window.removeEventListener("storage", onStorage);
   }, [refresh, pathname]);
 
-  if (pathname?.startsWith("/auth/callback") || pathname?.startsWith("/user/")) {
+  if (isClosedBetaPublicPath(pathname)) {
     return <>{children}</>;
   }
 

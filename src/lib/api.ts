@@ -88,6 +88,35 @@ export function turnstileSiteKey(): string {
  * Обміняти токен Turnstile на httpOnly-cookie `cd_login_gate` (потрібно перед GET /api/auth/steam,
  * якщо на бекенді задано TURNSTILE_SECRET_KEY).
  */
+/** Подтверждение версий юр. документов перед первым входом Steam (httpOnly `cd_legal_gate`). */
+export async function postLegalAccept(payload: {
+  termsVersion: number;
+  privacyVersion: number;
+  cookiesVersion: number;
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${base}/api/auth/legal-accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    });
+    const text = await res.text();
+    let data: { error?: string } = {};
+    try {
+      data = text ? (JSON.parse(text) as { error?: string }) : {};
+    } catch {
+      data = {};
+    }
+    if (!res.ok) {
+      return { ok: false, error: data.error || `Ошибка ${res.status}` };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Нет связи с API" };
+  }
+}
+
 export async function postLoginCaptcha(turnstileToken: string): Promise<{
   ok: boolean;
   error?: string;

@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { postLoginCaptcha, steamLoginUrl, turnstileSiteKey } from "@/lib/api";
+import { postLegalAccept, postLoginCaptcha, steamLoginUrl, turnstileSiteKey } from "@/lib/api";
 import { TurnstileWidget } from "@/components/TurnstileWidget";
+import { fetchLegalDocsMeta, legalAcceptPayload, type LegalDocsMeta } from "@/lib/legalDocs";
 
 type CdAuthModalEvent = CustomEvent<{ nextUrl?: string | null }>;
 
@@ -13,6 +15,8 @@ export function AuthModalHost() {
   const [nextUrl, setNextUrl] = useState<string>("/");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedAge, setAcceptedAge] = useState(false);
+  const [legalMeta, setLegalMeta] = useState<LegalDocsMeta | null>(null);
+  const [legalMetaErr, setLegalMetaErr] = useState<string | null>(null);
   const [tsToken, setTsToken] = useState<string | null>(null);
   const [steamBusy, setSteamBusy] = useState(false);
   const [capErr, setCapErr] = useState<string | null>(null);
@@ -33,6 +37,8 @@ export function AuthModalHost() {
       setNextUrl(url);
       setAcceptedTerms(false);
       setAcceptedAge(false);
+      setLegalMeta(null);
+      setLegalMetaErr(null);
       setTsToken(null);
       setCapErr(null);
       setSteamBusy(false);
@@ -56,6 +62,25 @@ export function AuthModalHost() {
 
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
+    setLegalMetaErr(null);
+    (async () => {
+      const m = await fetchLegalDocsMeta();
+      if (cancelled) return;
+      if (!m) {
+        setLegalMeta(null);
+        setLegalMetaErr("Не удалось загрузить тексты документов. Проверьте соединение.");
+        return;
+      }
+      setLegalMeta(m);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     window.localStorage.setItem("cd_next", nextUrl);
   }, [open, nextUrl]);
 
@@ -63,6 +88,8 @@ export function AuthModalHost() {
     setOpen(false);
     setAcceptedTerms(false);
     setAcceptedAge(false);
+    setLegalMeta(null);
+    setLegalMetaErr(null);
     setTsToken(null);
     setCapErr(null);
     setSteamBusy(false);
@@ -71,6 +98,10 @@ export function AuthModalHost() {
 
   async function handleSteamLogin() {
     setCapErr(null);
+    if (!legalMeta) {
+      setCapErr(legalMetaErr || "Загрузите страницу и попробуйте снова.");
+      return;
+    }
     if (tsSiteKey && !tsToken) {
       setCapErr("Пройдите проверку ниже.");
       return;
@@ -83,6 +114,12 @@ export function AuthModalHost() {
         setSteamBusy(false);
         return;
       }
+    }
+    const la = await postLegalAccept(legalAcceptPayload(legalMeta));
+    if (!la.ok) {
+      setCapErr(la.error || "Не удалось зафиксировать согласие");
+      setSteamBusy(false);
+      return;
     }
     window.localStorage.setItem("cd_next", nextUrl);
     window.location.href = loginHref;
@@ -135,6 +172,9 @@ export function AuthModalHost() {
                 <TurnstileWidget siteKey={tsSiteKey} onToken={setTsToken} />
               </div>
             ) : null}
+            {legalMetaErr ? (
+              <p className="mt-2 text-center text-xs text-amber-200/90">{legalMetaErr}</p>
+            ) : null}
             {capErr ? <p className="mt-2 text-center text-xs text-red-300">{capErr}</p> : null}
 
             <div className="mt-6">
@@ -142,7 +182,10 @@ export function AuthModalHost() {
                 type="button"
                 onClick={() => void handleSteamLogin()}
                 disabled={
-                  !(acceptedTerms && acceptedAge) || steamBusy || (Boolean(tsSiteKey) && !tsToken)
+                  !legalMeta ||
+                  !(acceptedTerms && acceptedAge) ||
+                  steamBusy ||
+                  (Boolean(tsSiteKey) && !tsToken)
                 }
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-700 to-cb-flame px-6 py-3 text-sm font-bold text-white shadow-lg shadow-red-900/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45"
               >
@@ -183,21 +226,25 @@ export function AuthModalHost() {
                 />
                 <span>
                   Я принимаю{" "}
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
+                  <Link href="/legal/terms" className="text-cb-flame hover:underline" target="_blank">
+                    {legalMeta?.terms.title || "Пользовательское соглашение"}
+                  </Link>
+                  ,{" "}
+                  <Link
+                    href="/legal/privacy"
                     className="text-cb-flame hover:underline"
+                    target="_blank"
                   >
-                    Условия пользования
-                  </a>{" "}
+                    {legalMeta?.privacy.title || "Политику конфиденциальности"}
+                  </Link>{" "}
                   и{" "}
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
+                  <Link
+                    href="/legal/cookies"
                     className="text-cb-flame hover:underline"
+                    target="_blank"
                   >
-                    Политику конфиденциальности
-                  </a>
+                    {legalMeta?.cookies.title || "Политику использования Cookie"}
+                  </Link>
                 </span>
               </label>
               <label className="flex cursor-pointer items-start gap-3">

@@ -15,6 +15,7 @@ import { SITE_MONEY_CTA_COMPACT_CLASS, SITE_MONEY_CTA_TINY_CLASS } from "@/lib/s
 import { prefetchUpgradePageData } from "@/lib/upgradePrefetch";
 import { NavbarNotifications } from "@/components/NavbarNotifications";
 import { AdminWithdrawalAlerts } from "@/components/AdminWithdrawalAlerts";
+import { GlobalLegalFooter } from "@/components/GlobalLegalFooter";
 
 /** Дані шапки з легкого GET /api/me/session (без важкого /api/me). */
 type Me = {
@@ -54,6 +55,9 @@ function NavChevronUp({ className }: { className?: string }) {
   );
 }
 
+type SupportReplyToast = { ticketId: string; subject: string };
+
+/** Плаваюча кнопка підтримки (fixed, правий нижній кут). */
 function SupportFabLink() {
   const pathname = usePathname();
   if (pathname.startsWith("/support")) return null;
@@ -77,8 +81,6 @@ function SupportFabLink() {
     </Link>
   );
 }
-
-type SupportReplyToast = { ticketId: string; subject: string };
 
 export function SiteShell({ children }: Props) {
   const drops = useLiveDrops();
@@ -172,8 +174,8 @@ export function SiteShell({ children }: Props) {
   }, [router]);
 
   return (
-    <div className="flex min-h-screen flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
-      <header className="sticky top-0 z-50 flex min-h-[4.5rem] flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] bg-[#050505]/85 px-[max(1rem,env(safe-area-inset-left,0px))] py-2.5 pt-[max(0.625rem,env(safe-area-inset-top,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] shadow-[0_4px_30px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:min-h-20 sm:gap-4 sm:px-6 sm:py-0 sm:pt-0">
+    <div className="relative flex w-full flex-col">
+      <header className="z-10 flex min-h-[4.5rem] shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] bg-[#050505]/90 px-[max(1rem,env(safe-area-inset-left,0px))] py-2.5 pt-[max(0.625rem,env(safe-area-inset-top,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] shadow-[0_4px_30px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:min-h-20 sm:gap-4 sm:px-6 sm:py-0 sm:pt-0">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4 lg:gap-8">
           <Link
             href="/"
@@ -370,50 +372,47 @@ export function SiteShell({ children }: Props) {
         </div>
       </header>
 
+      {supportToast && (
+        <div
+          className="border-b border-sky-500/40 bg-gradient-to-r from-sky-950/90 via-zinc-950/95 to-black px-[max(1rem,env(safe-area-inset-left,0px))] py-3 pr-[max(1rem,env(safe-area-inset-right,0px))] sm:px-6"
+          role="status"
+        >
+          <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wider text-sky-400/90">Поддержка ответила</p>
+              <p className="mt-0.5 truncate text-sm font-medium text-zinc-100">
+                {supportToast.subject || "Ваше обращение"}
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Link
+                href={`/support/${encodeURIComponent(supportToast.ticketId)}`}
+                className="rounded-xl bg-sky-600 px-4 py-2 text-center text-sm font-bold text-white transition hover:bg-sky-500"
+                onClick={() => setSupportToast(null)}
+              >
+                Открыть переписку
+              </Link>
+              <button
+                type="button"
+                aria-label="Закрыть уведомление"
+                className="rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 transition hover:bg-white/10 hover:text-zinc-200"
+                onClick={() => setSupportToast(null)}
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <LiveDropsRail drops={drops}>{children}</LiveDropsRail>
+      <GlobalLegalFooter />
       <CryptoTopUpModal
         open={cryptoTopUpOpen}
         onClose={() => setCryptoTopUpOpen(false)}
         onSuccess={() => setCryptoTopUpOpen(false)}
       />
       <SupportFabLink />
-
-      {supportToast && (
-        <div
-          className="fixed bottom-[max(5rem,env(safe-area-inset-bottom,0px)+4rem)] right-[max(1rem,env(safe-area-inset-right,0px))] z-[120] max-w-[min(24rem,calc(100vw-2rem))] sm:bottom-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:right-[max(1.5rem,env(safe-area-inset-right,0px))]"
-          role="status"
-        >
-          <div className="rounded-2xl border border-sky-500/40 bg-gradient-to-br from-sky-950/95 via-zinc-950 to-black p-4 shadow-[0_0_32px_rgba(56,189,248,0.25)] backdrop-blur-xl">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold uppercase tracking-wider text-sky-400/90">
-                  Поддержка ответила
-                </p>
-                <p className="mt-1 truncate text-sm font-medium text-zinc-100">
-                  {supportToast.subject || "Ваше обращение"}
-                </p>
-              </div>
-              <button
-                type="button"
-                aria-label="Закрыть уведомление"
-                className="shrink-0 rounded-lg p-1 text-zinc-500 transition hover:bg-white/10 hover:text-zinc-200"
-                onClick={() => setSupportToast(null)}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <Link
-              href={`/support/${encodeURIComponent(supportToast.ticketId)}`}
-              className="mt-3 block w-full rounded-xl bg-sky-600 py-2.5 text-center text-sm font-bold text-white transition hover:bg-sky-500"
-              onClick={() => setSupportToast(null)}
-            >
-              Открыть переписку
-            </Link>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
