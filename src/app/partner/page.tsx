@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { apiFetch } from "@/lib/api";
+import { PartnerFaqAccordion } from "@/components/PartnerFaqAccordion";
 import { SiteMoney } from "@/components/SiteMoney";
 import { usePartnerCabinetTab } from "@/contexts/PartnerCabinetTabContext";
 
@@ -10,6 +11,8 @@ type Dash = {
     id: string;
     percentBps: number;
     percentDisplay: string;
+    /** Рівень партнерки / рефералки (поки всім 0). */
+    level: number;
     totalEarnedConfirmedRub: number;
     totalEarnedPendingRub: number;
     totalPaidOutRub: number;
@@ -92,7 +95,7 @@ function SectionShell({
   id?: string;
   title: string;
   description?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <section
@@ -204,6 +207,9 @@ export default function PartnerDashboardPage() {
             <p className="mt-2 text-sm text-zinc-500">
               Показатели в реальном времени · ID:{" "}
               <span className="font-mono text-zinc-400">{shortId}</span>
+              {" · "}
+              уровень{" "}
+              <span className="font-mono text-zinc-300">{p.level ?? 0}</span>
               {" · "}
               ставка{" "}
               <span className="font-mono text-cb-flame/95">{p.percentDisplay}%</span> от чистой базы депозита
@@ -454,6 +460,8 @@ export default function PartnerDashboardPage() {
         )}
       </SectionShell>
       ) : null}
+
+      {tab === "faq" ? <PartnerFaqAccordion /> : null}
 
       {tab === "reports" ? (
       <SectionShell

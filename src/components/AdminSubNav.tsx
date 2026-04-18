@@ -75,6 +75,9 @@ export function AdminSubNav() {
           <Link href="/admin/partners" className={linkClass}>
             Партнёры
           </Link>
+          <Link href="/admin/partner-faq" className={linkClass}>
+            F.A.Q партнеров
+          </Link>
           <Link href="/admin/withdrawals" className={linkClass}>
             Вывод Market.csgo
           </Link>

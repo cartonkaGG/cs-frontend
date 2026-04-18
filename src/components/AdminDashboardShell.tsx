@@ -28,6 +28,7 @@ const adminLinks: { href: string; label: string }[] = [
   { href: "/admin/beta", label: "Бета-доступ" },
   { href: "/admin/deposits", label: "Пополнения" },
   { href: "/admin/partners", label: "Партнёры" },
+  { href: "/admin/partner-faq", label: "F.A.Q партнеров" },
   { href: "/admin/withdrawals", label: "Вывод Market.csgo" },
   { href: "/admin/audit-logs", label: "Логи админов" },
   { href: "/admin/support", label: "Обращения" },
