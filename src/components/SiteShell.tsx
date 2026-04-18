@@ -25,6 +25,7 @@ type Me = {
   balance: number;
   isAdmin?: boolean;
   isSupportStaff?: boolean;
+  isPartner?: boolean;
 };
 
 type MeSessionApi = {
@@ -33,6 +34,7 @@ type MeSessionApi = {
   balance?: number;
   isAdmin?: boolean;
   isSupportStaff?: boolean;
+  isPartner?: boolean;
   needsLegalAcceptance?: boolean;
 };
 
@@ -127,6 +129,7 @@ export function SiteShell({ children }: Props) {
         balance: typeof r.data.balance === "number" ? r.data.balance : 0,
         isAdmin: r.data.isAdmin,
         isSupportStaff: r.data.isSupportStaff,
+        isPartner: r.data.isPartner,
       });
       setNeedsLegalAcceptance(Boolean(r.data.needsLegalAcceptance));
     } else {
@@ -337,6 +340,16 @@ export function SiteShell({ children }: Props) {
                   >
                     Профиль и инвентарь
                   </Link>
+                  {me.isPartner && (
+                    <Link
+                      href="/partner"
+                      role="menuitem"
+                      className="block px-4 py-2.5 text-sm text-emerald-300/95 hover:bg-emerald-950/25 hover:text-emerald-200"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      Партнёрский кабинет
+                    </Link>
+                  )}
                   {me.isSupportStaff && !me.isAdmin && (
                     <Link
                       href="/admin/support"

@@ -34,14 +34,13 @@ export async function apiFetch<T>(
   status: number;
 }> {
   const token = typeof window !== "undefined" ? getToken() : null;
-  const headers: HeadersInit = {
-    ...(init?.headers || {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
   try {
     const res = await fetch(`${base}${path}`, {
       ...init,
-      headers,
+      headers: {
+        ...(init?.headers as Record<string, string> | undefined),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       credentials: "include",
     });
     const text = await res.text();

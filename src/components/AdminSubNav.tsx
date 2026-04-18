@@ -7,6 +7,7 @@ import { apiFetch, getToken } from "@/lib/api";
 type MeSession = {
   isAdmin?: boolean;
   isSupportStaff?: boolean;
+  isPartner?: boolean;
 };
 
 const linkClass = "text-zinc-400 hover:text-white";
@@ -70,6 +71,9 @@ export function AdminSubNav() {
           </Link>
           <Link href="/admin/deposits" className={linkClass}>
             Пополнения
+          </Link>
+          <Link href="/admin/partners" className={linkClass}>
+            Партнёры
           </Link>
           <Link href="/admin/withdrawals" className={linkClass}>
             Вывод Market.csgo
