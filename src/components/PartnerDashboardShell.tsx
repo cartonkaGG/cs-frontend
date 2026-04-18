@@ -9,6 +9,7 @@ import type { PartnerCabinetTab } from "@/contexts/PartnerCabinetTabContext";
 import { SiteMoney } from "@/components/SiteMoney";
 import { NavbarNotifications } from "@/components/NavbarNotifications";
 import { NavbarUserMenu } from "@/components/NavbarUserMenu";
+import { PartnerLevelHudOrb } from "@/components/PartnerLevelHudOrb";
 
 type Session = {
   displayName: string;
@@ -179,12 +180,9 @@ export function PartnerDashboardShell({ children }: { children: React.ReactNode 
             </div>
             <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
               <p className="truncate text-base font-semibold leading-tight text-white">{me.displayName}</p>
-              <span
-                className="shrink-0 rounded-lg border border-white/[0.1] bg-zinc-900/80 px-2 py-0.5 text-xs font-bold tabular-nums text-zinc-400"
-                title="Уровень партнёрской программы"
-              >
-                {me.partnerLevel ?? 0} ур.
-              </span>
+              <div className="shrink-0" title="Уровень партнёрской программы">
+                <PartnerLevelHudOrb level={me.partnerLevel ?? 0} compact />
+              </div>
             </div>
           </Link>
         ) : (

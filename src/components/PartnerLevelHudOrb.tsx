@@ -15,7 +15,22 @@ type HudTheme = {
   microSec?: number;
 };
 
-const THEMES: HudTheme[] = [
+/** Індекс у масиві = номер рівня (0…5). Рівень 0 — стартовий для нових партнерів, не показується в таблиці «Уровни» у F.A.Q. */
+const LEVEL_THEMES: HudTheme[] = [
+  {
+    main: "#D8D8E0",
+    dim: "#6B21A8",
+    segments: 3,
+    outerR: 40,
+    innerR: 29,
+    strokeOuter: 3,
+    strokeInner: 2.1,
+    outerSec: 17,
+    innerSec: 10,
+    innerReverse: false,
+    microR: 44,
+    microSec: 21,
+  },
   {
     main: "#FACC15",
     dim: "#A16207",
@@ -87,18 +102,30 @@ function ringDashArray(r: number, segments: number): string {
   return `${unit} ${unit}`;
 }
 
-export function PartnerLevelHudOrb({ level }: { level: number }) {
-  const n = Math.min(5, Math.max(1, level));
-  const t = THEMES[n - 1];
+export function PartnerLevelHudOrb({
+  level,
+  compact,
+}: {
+  level: number;
+  /** Компактний бейдж біля профілю (без підпису «ур.»). */
+  compact?: boolean;
+}) {
+  const n = Math.min(5, Math.max(0, level));
+  const t = LEVEL_THEMES[n];
   const uid = `hudg-${n}`;
   const outerDash = ringDashArray(t.outerR, t.segments);
   const innerDash = ringDashArray(t.innerR, t.segments);
   const microDash = t.microR != null ? ringDashArray(t.microR, 6) : null;
+  const digitSize = compact ? 20 : 27;
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col items-center gap-3">
+    <div
+      className={`flex min-w-0 flex-col items-center ${compact ? "shrink-0 gap-0" : "flex-1 gap-3"}`}
+    >
       <div
-        className="relative mx-auto aspect-square w-full max-w-[9.5rem] sm:max-w-[10.5rem]"
+        className={`relative mx-auto aspect-square w-full ${
+          compact ? "max-w-[3.25rem]" : "max-w-[9.5rem] sm:max-w-[10.5rem]"
+        }`}
         role="img"
         aria-label={`Уровень ${n}`}
       >
@@ -212,13 +239,13 @@ export function PartnerLevelHudOrb({ level }: { level: number }) {
             textAnchor="middle"
             dominantBaseline="central"
             fill={t.main}
-            fontSize="27"
+            fontSize={digitSize}
             fontWeight="900"
             fontFamily="system-ui, sans-serif"
             style={{
               paintOrder: "stroke fill",
               stroke: "rgba(0,0,0,0.55)",
-              strokeWidth: 2,
+              strokeWidth: compact ? 1.5 : 2,
               filter: `drop-shadow(0 0 8px ${t.main}66)`,
             }}
           >
@@ -226,9 +253,11 @@ export function PartnerLevelHudOrb({ level }: { level: number }) {
           </text>
         </svg>
       </div>
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 sm:text-[12px]">
-        ур.
-      </span>
+      {!compact ? (
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 sm:text-[12px]">
+          ур.
+        </span>
+      ) : null}
     </div>
   );
 }
