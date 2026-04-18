@@ -239,7 +239,7 @@ export default function AdminPartnersPage() {
     });
     if (!r.ok) setMsg(r.error || "Ошибка");
     else {
-      setMsg("Партнёр создан, роль partner выдана.");
+      setMsg("Партнёр создан. Роль в профиле не меняется — доступ в кабинет по записи Partner.");
       setSteamId("");
       void load();
     }
