@@ -42,7 +42,6 @@ export function CryptoTopUpModal({ open, onClose, onSuccess }: Props) {
   const [selected, setSelected] = useState<string>("usdttrc20");
   const [amount, setAmount] = useState<string>("10");
   const [promo, setPromo] = useState("");
-  const [partnerRef, setPartnerRef] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [preview, setPreview] = useState<DepositPreview | null>(null);
@@ -98,7 +97,7 @@ export function CryptoTopUpModal({ open, onClose, onSuccess }: Props) {
           body: JSON.stringify({
             amountUsd: usd,
             promoCode: promo.trim() || undefined,
-            partnerReferralCode: partnerRef.trim() || undefined,
+            partnerReferralCode: promo.trim() || undefined,
           }),
         });
         if (cancelled) return;
@@ -112,7 +111,7 @@ export function CryptoTopUpModal({ open, onClose, onSuccess }: Props) {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [open, cfg?.enabled, amount, promo, partnerRef]);
+  }, [open, cfg?.enabled, amount, promo]);
 
   if (!open) return null;
 
@@ -152,7 +151,7 @@ export function CryptoTopUpModal({ open, onClose, onSuccess }: Props) {
         amountUsd: usd,
         payCurrency: selected,
         promoCode: promo.trim() || undefined,
-        partnerReferralCode: partnerRef.trim() || undefined,
+        partnerReferralCode: promo.trim() || undefined,
       }),
     });
     setBusy(false);
@@ -293,6 +292,9 @@ export function CryptoTopUpModal({ open, onClose, onSuccess }: Props) {
                       <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
                         Промокод (бонус к депозиту)
                       </span>
+                      <p className="text-[10px] leading-snug text-zinc-600">
+                        Промокод сайта или код партнёра — бонус задаётся в админке.
+                      </p>
                       <div className="flex h-11 items-stretch rounded-xl border border-cb-stroke/80 bg-black/50">
                         <span className="flex items-center pl-3 text-zinc-600" aria-hidden>
                           %
@@ -302,20 +304,9 @@ export function CryptoTopUpModal({ open, onClose, onSuccess }: Props) {
                           onChange={(e) => setPromo(e.target.value)}
                           className="min-w-0 flex-1 bg-transparent px-2 text-sm text-white placeholder:text-zinc-600"
                           placeholder="необязательно"
+                          autoComplete="off"
                         />
                       </div>
-                    </div>
-                    <div className="flex min-w-0 flex-col gap-1.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                        Реферальный код партнёра
-                      </span>
-                      <input
-                        value={partnerRef}
-                        onChange={(e) => setPartnerRef(e.target.value)}
-                        className="h-11 rounded-xl border border-cb-stroke/80 bg-black/50 px-3 text-sm text-white placeholder:text-zinc-600"
-                        placeholder="если есть"
-                        autoComplete="off"
-                      />
                     </div>
                     <button
                       type="button"

@@ -10,6 +10,14 @@ type PartnerBehavior = {
   promoBindMode: "user" | "order";
 };
 
+type PartnerPromoRow = {
+  id: string;
+  code: string;
+  label: string;
+  active: boolean;
+  depositBonusPercent: number;
+};
+
 type PartnerRow = {
   _id: string;
   userSub: string;
@@ -26,6 +34,7 @@ type PartnerRow = {
   steamId?: string | null;
   displayName?: string;
   avatar?: string;
+  codes?: PartnerPromoRow[];
 };
 
 type CabinetDash = {
@@ -49,7 +58,13 @@ type CabinetDash = {
     minDepositRub: number;
     promoBindMode: string;
   };
-  codes: { id: string; code: string; label: string; active: boolean }[];
+  codes: {
+    id: string;
+    code: string;
+    label: string;
+    active: boolean;
+    depositBonusPercent: number;
+  }[];
   earnings: {
     id: string;
     at: string;
@@ -83,13 +98,116 @@ function formatEarningStatusRu(status: string) {
   }
 }
 
+function PartnerPromoEditRow({
+  partnerId,
+  c,
+  onSaved,
+  onError,
+}: {
+  partnerId: string;
+  c: PartnerPromoRow;
+  onSaved: () => void;
+  onError?: (msg: string) => void;
+}) {
+  const [code, setCode] = useState(c.code);
+  const [label, setLabel] = useState(c.label || "");
+  const [active, setActive] = useState(c.active);
+  const [pct, setPct] = useState(String(c.depositBonusPercent));
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setCode(c.code);
+    setLabel(c.label || "");
+    setActive(c.active);
+    setPct(String(c.depositBonusPercent));
+  }, [c.id, c.code, c.label, c.active, c.depositBonusPercent]);
+
+  async function save() {
+    const v = Math.min(100, Math.max(0, Math.floor(Number(String(pct).replace(",", ".")) || 0)));
+    const normCode = String(code || "").trim();
+    if (normCode.length < 2) {
+      onError?.("Код: минимум 2 символа");
+      return;
+    }
+    setBusy(true);
+    const r = await apiFetch(`/api/admin/partners/${partnerId}/promo-codes/${c.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: normCode,
+        label: label.trim(),
+        active,
+        depositBonusPercent: v,
+      }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      onError?.(r.error || "Ошибка");
+      return;
+    }
+    onSaved();
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-cb-stroke/50 bg-black/25 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-end">
+      <label className="flex min-w-[8rem] flex-col gap-0.5 text-[10px] text-zinc-500">
+        Код
+        <input
+          className="rounded border border-cb-stroke/80 bg-black/50 px-2 py-1 font-mono text-sm text-white"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          maxLength={48}
+        />
+      </label>
+      <label className="flex min-w-[6rem] flex-1 flex-col gap-0.5 text-[10px] text-zinc-500">
+        Метка
+        <input
+          className="rounded border border-cb-stroke/80 bg-black/50 px-2 py-1 text-sm text-white"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          maxLength={120}
+        />
+      </label>
+      <label className="flex cursor-pointer items-center gap-2 text-[11px] text-zinc-400">
+        <input
+          type="checkbox"
+          className="rounded border-cb-stroke/80"
+          checked={active}
+          onChange={(e) => setActive(e.target.checked)}
+        />
+        Активен
+      </label>
+      <label className="flex flex-col gap-0.5 text-[10px] text-zinc-500">
+        Бонус к депозиту %
+        <input
+          type="number"
+          min={0}
+          max={100}
+          className="w-16 rounded border border-cb-stroke/80 bg-black/50 px-2 py-1 font-mono text-sm text-white"
+          value={pct}
+          onChange={(e) => setPct(e.target.value)}
+        />
+      </label>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void save()}
+        className="rounded border border-emerald-800/60 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50"
+      >
+        {busy ? "…" : "Сохранить"}
+      </button>
+    </div>
+  );
+}
+
 export default function AdminPartnersPage() {
   const [partners, setPartners] = useState<PartnerRow[]>([]);
   const [behaviorDraft, setBehaviorDraft] = useState<Record<string, PartnerBehavior>>({});
   const [steamId, setSteamId] = useState("");
   const [pct, setPct] = useState("5");
   const [note, setNote] = useState("");
-  const [promoByPartner, setPromoByPartner] = useState<Record<string, { code: string; label: string }>>({});
+  const [promoByPartner, setPromoByPartner] = useState<
+    Record<string, { code: string; label: string; depositBonusPercent: string }>
+  >({});
   const [msg, setMsg] = useState<string | null>(null);
   const [cabinetId, setCabinetId] = useState<string | null>(null);
   const [cabinetData, setCabinetData] = useState<CabinetDash | null>(null);
@@ -181,17 +299,21 @@ export default function AdminPartnersPage() {
   }
 
   async function addPromo(partnerId: string) {
-    const row = promoByPartner[partnerId] || { code: "", label: "" };
+    const row = promoByPartner[partnerId] || { code: "", label: "", depositBonusPercent: "0" };
     if (!row.code.trim()) return;
+    const depositBonusPercent = Math.min(
+      100,
+      Math.max(0, Math.floor(Number(String(row.depositBonusPercent).replace(",", ".")) || 0))
+    );
     const r = await apiFetch(`/api/admin/partners/${partnerId}/promo-codes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: row.code, label: row.label }),
+      body: JSON.stringify({ code: row.code, label: row.label, depositBonusPercent }),
     });
     if (!r.ok) setMsg(r.error || "Ошибка");
     else {
       setMsg("Код добавлен.");
-      setPromoByPartner((p) => ({ ...p, [partnerId]: { code: "", label: "" } }));
+      setPromoByPartner((p) => ({ ...p, [partnerId]: { code: "", label: "", depositBonusPercent: "0" } }));
       void load();
     }
   }
@@ -349,36 +471,80 @@ export default function AdminPartnersPage() {
                     </button>
                   </div>
 
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <input
-                      placeholder="Новый код"
-                      className="rounded border border-cb-stroke/80 bg-black/50 px-2 py-1 font-mono text-white"
-                      value={promoByPartner[p._id]?.code || ""}
-                      onChange={(e) =>
-                        setPromoByPartner((x) => ({
-                          ...x,
-                          [p._id]: { ...(x[p._id] || { label: "" }), code: e.target.value },
-                        }))
-                      }
-                    />
-                    <input
-                      placeholder="метка"
-                      className="rounded border border-cb-stroke/80 bg-black/50 px-2 py-1 text-white"
-                      value={promoByPartner[p._id]?.label || ""}
-                      onChange={(e) =>
-                        setPromoByPartner((x) => ({
-                          ...x,
-                          [p._id]: { ...(x[p._id] || { code: "" }), label: e.target.value },
-                        }))
-                      }
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void addPromo(p._id)}
-                      className="rounded border border-zinc-600 px-3 py-1 text-xs text-zinc-300"
-                    >
-                      Добавить код
-                    </button>
+                  <div className="mt-3 space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                      Промокоды партнёра (в поле «промокод» при пополнении; бонус % к базе депозита)
+                    </p>
+                    {(p.codes || []).length > 0 ? (
+                      <div className="space-y-1.5">
+                        {(p.codes || []).map((c) => (
+                          <PartnerPromoEditRow
+                            key={c.id}
+                            partnerId={p._id}
+                            c={c}
+                            onError={(m) => setMsg(m)}
+                            onSaved={() => {
+                              setMsg("Промокод сохранён.");
+                              void load();
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-zinc-600">Кодов пока нет.</p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        placeholder="Новый код"
+                        className="rounded border border-cb-stroke/80 bg-black/50 px-2 py-1 font-mono text-white"
+                        value={promoByPartner[p._id]?.code || ""}
+                        onChange={(e) =>
+                          setPromoByPartner((x) => ({
+                            ...x,
+                            [p._id]: {
+                              ...(x[p._id] || { label: "", depositBonusPercent: "0" }),
+                              code: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <input
+                        placeholder="метка"
+                        className="rounded border border-cb-stroke/80 bg-black/50 px-2 py-1 text-white"
+                        value={promoByPartner[p._id]?.label || ""}
+                        onChange={(e) =>
+                          setPromoByPartner((x) => ({
+                            ...x,
+                            [p._id]: {
+                              ...(x[p._id] || { code: "", depositBonusPercent: "0" }),
+                              label: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <input
+                        placeholder="бонус %"
+                        title="Процент бонуса к сумме депозита (база ₽)"
+                        className="w-20 rounded border border-cb-stroke/80 bg-black/50 px-2 py-1 font-mono text-white"
+                        value={promoByPartner[p._id]?.depositBonusPercent ?? "0"}
+                        onChange={(e) =>
+                          setPromoByPartner((x) => ({
+                            ...x,
+                            [p._id]: {
+                              ...(x[p._id] || { code: "", label: "" }),
+                              depositBonusPercent: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void addPromo(p._id)}
+                        className="rounded border border-zinc-600 px-3 py-1 text-xs text-zinc-300"
+                      >
+                        Добавить код
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-cb-stroke/40 pt-3">
                     <button
@@ -515,7 +681,12 @@ function CabinetPreview({ data }: { data: CabinetDash }) {
                 key={c.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-cb-stroke/70 bg-black/40 px-4 py-3"
               >
-                <span className="font-mono text-lg text-white">{c.code}</span>
+                <div className="min-w-0">
+                  <span className="font-mono text-lg text-white">{c.code}</span>
+                  {(c.depositBonusPercent ?? 0) > 0 ? (
+                    <p className="text-xs text-emerald-200/90">бонус к депозиту: {c.depositBonusPercent}%</p>
+                  ) : null}
+                </div>
                 <span className="text-xs text-zinc-500">{c.active ? "активен" : "выкл."}</span>
               </div>
             ))
