@@ -87,10 +87,6 @@ function ringDashArray(r: number, segments: number): string {
   return `${unit} ${unit}`;
 }
 
-/** Класичний контур «заряду» (як у системних іконок), у координатах з центром у (0,0). */
-const BOLT_PATH_D =
-  "M 0 -18 L -12.5 0 H -2 L -9 18 L 12.5 -7.2 H 2 L 11 -18 Z";
-
 export function PartnerLevelHudOrb({ level }: { level: number }) {
   const n = Math.min(5, Math.max(1, level));
   const t = THEMES[n - 1];
@@ -104,7 +100,7 @@ export function PartnerLevelHudOrb({ level }: { level: number }) {
       <div
         className="relative mx-auto aspect-square w-full max-w-[9.5rem] sm:max-w-[10.5rem]"
         role="img"
-        aria-label={n === 5 ? "Уровень 5" : `Уровень ${n}`}
+        aria-label={`Уровень ${n}`}
       >
         <svg viewBox="0 0 100 100" className="h-full w-full overflow-visible" aria-hidden>
           <defs>
@@ -119,17 +115,6 @@ export function PartnerLevelHudOrb({ level }: { level: number }) {
               <stop offset="0%" stopColor={t.main} />
               <stop offset="100%" stopColor={t.dim} />
             </linearGradient>
-            {n === 5 ? (
-              <>
-                <radialGradient id={`${uid}-bolt-core`} cx="32%" cy="28%" r="72%">
-                  <stop offset="0%" stopColor="#FFF1F2" />
-                  <stop offset="18%" stopColor="#FCA5A5" />
-                  <stop offset="45%" stopColor="#EF4444" />
-                  <stop offset="78%" stopColor="#B91C1C" />
-                  <stop offset="100%" stopColor="#450A0A" />
-                </radialGradient>
-              </>
-            ) : null}
           </defs>
 
           <circle cx="50" cy="50" r="47" fill="#060606" stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
@@ -221,45 +206,24 @@ export function PartnerLevelHudOrb({ level }: { level: number }) {
             ))}
           </g>
 
-          {n === 5 ? (
-            <g transform="translate(50 50)">
-              <path d={BOLT_PATH_D} fill={`url(#${uid}-bolt-core)`} />
-              <path
-                d={BOLT_PATH_D}
-                fill="none"
-                stroke="rgba(255,255,255,0.22)"
-                strokeWidth="0.55"
-                strokeLinejoin="miter"
-                style={{ paintOrder: "stroke fill" }}
-              />
-              <path
-                d={BOLT_PATH_D}
-                fill="none"
-                stroke="rgba(0,0,0,0.5)"
-                strokeWidth="0.7"
-                strokeLinejoin="round"
-              />
-            </g>
-          ) : (
-            <text
-              x="50"
-              y="50"
-              textAnchor="middle"
-              dominantBaseline="central"
-              fill={t.main}
-              fontSize="27"
-              fontWeight="900"
-              fontFamily="system-ui, sans-serif"
-              style={{
-                paintOrder: "stroke fill",
-                stroke: "rgba(0,0,0,0.55)",
-                strokeWidth: 2,
-                filter: `drop-shadow(0 0 8px ${t.main}66)`,
-              }}
-            >
-              {n}
-            </text>
-          )}
+          <text
+            x="50"
+            y="50"
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill={t.main}
+            fontSize="27"
+            fontWeight="900"
+            fontFamily="system-ui, sans-serif"
+            style={{
+              paintOrder: "stroke fill",
+              stroke: "rgba(0,0,0,0.55)",
+              strokeWidth: 2,
+              filter: `drop-shadow(0 0 8px ${t.main}66)`,
+            }}
+          >
+            {n}
+          </text>
         </svg>
       </div>
       <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 sm:text-[12px]">
