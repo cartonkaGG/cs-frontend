@@ -1,10 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { apiFetch, clearToken, getToken } from "@/lib/api";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { apiFetch, getToken } from "@/lib/api";
 import { requestSteamLoginRedirect } from "@/lib/steamLoginRedirect";
 import { SiteMoney } from "@/components/SiteMoney";
 import { useLiveDrops } from "@/hooks/useLiveDrops";
@@ -17,6 +16,7 @@ import { NavbarNotifications } from "@/components/NavbarNotifications";
 import { AdminWithdrawalAlerts } from "@/components/AdminWithdrawalAlerts";
 import { GlobalLegalFooter } from "@/components/GlobalLegalFooter";
 import { LegalAcceptanceRequiredModal } from "@/components/LegalAcceptanceRequiredModal";
+import { NavbarUserMenu } from "@/components/NavbarUserMenu";
 
 /** Дані шапки з легкого GET /api/me/session (без важкого /api/me). */
 type Me = {
@@ -64,7 +64,8 @@ type SupportReplyToast = { ticketId: string; subject: string };
 /** Плаваюча кнопка підтримки (fixed, правий нижній кут). */
 function SupportFabLink() {
   const pathname = usePathname();
-  if (pathname.startsWith("/support")) return null;
+  if (pathname.startsWith("/support") || pathname.startsWith("/partner") || pathname.startsWith("/admin"))
+    return null;
   return (
     <Link
       href="/support"
@@ -91,13 +92,10 @@ export function SiteShell({ children }: Props) {
   const [me, setMe] = useState<Me | null>(null);
   /** SSR і перший кадр без localStorage — не смикати шапку «гість → залогінений» */
   const [hasBrowserToken, setHasBrowserToken] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [cryptoTopUpOpen, setCryptoTopUpOpen] = useState(false);
   const [supportToast, setSupportToast] = useState<SupportReplyToast | null>(null);
   /** Старые аккаунты без legalAcceptance — блокируем сайт, пока не отметят все галочки. */
   const [needsLegalAcceptance, setNeedsLegalAcceptance] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
   useLayoutEffect(() => {
     setHasBrowserToken(Boolean(getToken()));
   }, []);
@@ -158,27 +156,10 @@ export function SiteShell({ children }: Props) {
     return () => window.removeEventListener("cd-open-crypto-topup", h);
   }, []);
 
-  useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    if (menuOpen) {
-      document.addEventListener("mousedown", handle);
-      return () => document.removeEventListener("mousedown", handle);
-    }
-  }, [menuOpen]);
-
-  function logout() {
-    clearToken();
-    setMe(null);
-    setMenuOpen(false);
-    window.location.reload();
-  }
-
   const pathname = usePathname();
   const router = useRouter();
+  const partnerDash = pathname.startsWith("/partner");
+  const staffDash = partnerDash || pathname.startsWith("/admin");
   const upgradeActive = pathname.startsWith("/upgrade");
   const warmUpgradeNav = useCallback(() => {
     router.prefetch("/upgrade");
@@ -187,6 +168,7 @@ export function SiteShell({ children }: Props) {
 
   return (
     <div className="relative flex w-full flex-col">
+      {!staffDash && (
       <header className="z-10 flex min-h-[4.5rem] shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] bg-[#050505]/90 px-[max(1rem,env(safe-area-inset-left,0px))] py-2.5 pt-[max(0.625rem,env(safe-area-inset-top,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] shadow-[0_4px_30px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:min-h-20 sm:gap-4 sm:px-6 sm:py-0 sm:pt-0">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4 lg:gap-8">
           <Link
@@ -264,123 +246,17 @@ export function SiteShell({ children }: Props) {
               >
                 Пополнить
               </button>
-            <div className="relative" ref={menuRef}>
-              <button
-                type="button"
-                onClick={() => setMenuOpen((o) => !o)}
-                className="flex items-center gap-2.5 rounded-xl border border-cb-stroke/90 bg-cb-panel/50 py-1.5 pl-1.5 pr-3 transition hover:border-cb-flame/35 hover:bg-cb-panel/70"
-                aria-expanded={menuOpen}
-                aria-haspopup="true"
-              >
-                <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg ring-2 ring-red-900/40">
-                  <Image
-                    src={me.avatar || "/logo.svg"}
-                    alt=""
-                    width={36}
-                    height={36}
-                    className="h-full w-full object-cover"
-                    unoptimized
-                  />
-                </span>
-                <span className="hidden max-w-[120px] truncate text-left text-sm font-medium text-zinc-200 sm:block">
-                  {me.displayName}
-                </span>
-                <svg
-                  className={`h-4 w-4 shrink-0 text-zinc-500 transition ${menuOpen ? "rotate-180" : ""}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  aria-hidden
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {menuOpen && (
-                <div
-                  className="absolute right-0 top-full z-[60] mt-2 w-[min(16rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-cb-stroke bg-zinc-950/95 py-2 shadow-2xl shadow-black/50 backdrop-blur-xl sm:w-64 sm:max-w-none"
-                  role="menu"
-                >
-                  <div className="border-b border-cb-stroke px-4 py-3">
-                    <p className="truncate text-sm font-semibold text-white">{me.displayName}</p>
-                    <p className="mt-1 max-w-full min-w-0 truncate text-xs text-cb-flame">
-                      <SiteMoney
-                        value={me.balance}
-                        className="font-mono"
-                        iconClassName="h-4 w-4 shrink-0 text-cb-flame"
-                      />
-                    </p>
-                  </div>
-                  <Link
-                    href="/upgrade"
-                    prefetch
-                    role="menuitem"
-                    className="block px-4 py-2.5 text-sm text-zinc-300 hover:bg-white/5 hover:text-cb-flame"
-                    onPointerEnter={warmUpgradeNav}
-                    onFocus={warmUpgradeNav}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Апгрейд
-                  </Link>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="block w-full px-4 py-2.5 text-left text-sm text-cb-flame hover:bg-red-950/20"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setCryptoTopUpOpen(true);
-                    }}
-                  >
-                    Пополнить
-                  </button>
-                  <Link
-                    href="/profile"
-                    role="menuitem"
-                    className="block px-4 py-2.5 text-sm text-zinc-300 hover:bg-white/5 hover:text-white"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Профиль и инвентарь
-                  </Link>
-                  {me.isPartner && (
-                    <Link
-                      href="/partner"
-                      role="menuitem"
-                      className="block px-4 py-2.5 text-sm text-emerald-300/95 hover:bg-emerald-950/25 hover:text-emerald-200"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      Партнёрский кабинет
-                    </Link>
-                  )}
-                  {me.isSupportStaff && !me.isAdmin && (
-                    <Link
-                      href="/admin/support"
-                      role="menuitem"
-                      className="block px-4 py-2.5 text-sm text-sky-300/95 hover:bg-sky-950/30 hover:text-sky-200"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      Панель поддержки
-                    </Link>
-                  )}
-                  {me.isAdmin && (
-                    <Link
-                      href="/admin/cases"
-                      role="menuitem"
-                      className="block px-4 py-2.5 text-sm text-amber-400/95 hover:bg-amber-950/30 hover:text-amber-300"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      Админ-панель
-                    </Link>
-                  )}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="w-full px-4 py-2.5 text-left text-sm text-zinc-400 hover:bg-red-950/25 hover:text-red-300"
-                    onClick={logout}
-                  >
-                    Выйти
-                  </button>
-                </div>
-              )}
-            </div>
+            <NavbarUserMenu
+              me={{
+                displayName: me.displayName,
+                avatar: me.avatar || "/logo.svg",
+                balance: me.balance,
+                isAdmin: me.isAdmin,
+                isSupportStaff: me.isSupportStaff,
+                isPartner: me.isPartner,
+              }}
+              variant="site"
+            />
             </div>
           ) : (
             <button
@@ -393,6 +269,7 @@ export function SiteShell({ children }: Props) {
           )}
         </div>
       </header>
+      )}
 
       {supportToast && (
         <div
@@ -427,8 +304,12 @@ export function SiteShell({ children }: Props) {
         </div>
       )}
 
-      <LiveDropsRail drops={drops}>{children}</LiveDropsRail>
-      <GlobalLegalFooter />
+      {staffDash ? (
+        <div className="min-w-0 flex-1">{children}</div>
+      ) : (
+        <LiveDropsRail drops={drops}>{children}</LiveDropsRail>
+      )}
+      {!staffDash && <GlobalLegalFooter />}
       <CryptoTopUpModal
         open={cryptoTopUpOpen}
         onClose={() => setCryptoTopUpOpen(false)}

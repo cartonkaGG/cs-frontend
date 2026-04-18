@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { SiteMoney } from "@/components/SiteMoney";
+import { usePartnerCabinetTab } from "@/contexts/PartnerCabinetTabContext";
 
 type Dash = {
   partner: {
+    id: string;
     percentBps: number;
     percentDisplay: string;
     totalEarnedConfirmedRub: number;
@@ -52,9 +54,67 @@ function daysAgo(n: number) {
   return { from: ymd(from), to: ymd(to) };
 }
 
+function earningStatusRu(status: string) {
+  switch (status) {
+    case "pending":
+      return "ожидает";
+    case "credited":
+      return "зачислено";
+    case "confirmed":
+      return "архив";
+    case "void":
+      return "отменено";
+    default:
+      return status;
+  }
+}
+
+function periodLabel(from: string, to: string): string {
+  if (!from && !to) return "За всё время";
+  if (from && to) {
+    const a = new Date(from);
+    const b = new Date(to);
+    const diff = Math.round((b.getTime() - a.getTime()) / 86400000);
+    if (diff <= 8) return "Последние 7 дней";
+    if (diff <= 32) return "Последние 30 дней";
+    if (diff <= 95) return "Последние 90 дней";
+  }
+  return `${from || "…"} — ${to || "…"}`;
+}
+
+/** Единый блок раздела: заголовок, описание, контент. */
+function SectionShell({
+  id,
+  title,
+  description,
+  children,
+}: {
+  id?: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      id={id}
+      className="rounded-2xl border border-white/[0.08] bg-[#0c0c0c]/95 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-6"
+    >
+      <header className="mb-5 border-b border-white/[0.06] pb-4">
+        <h2 className="text-sm font-black uppercase tracking-[0.12em] text-white">{title}</h2>
+        {description ? (
+          <p className="mt-2 max-w-3xl text-xs leading-relaxed text-zinc-500">{description}</p>
+        ) : null}
+      </header>
+      {children}
+    </section>
+  );
+}
+
 export default function PartnerDashboardPage() {
+  const { tab, setTab } = usePartnerCabinetTab();
   const [data, setData] = useState<Dash | null>(null);
   const [period, setPeriod] = useState(() => daysAgo(30));
+  const [preset, setPreset] = useState<"7" | "30" | "90" | "all">("30");
   const [stats, setStats] = useState<PeriodStats | null>(null);
   const [statsErr, setStatsErr] = useState<string | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -65,7 +125,7 @@ export default function PartnerDashboardPage() {
     void (async () => {
       const r = await apiFetch<Dash>("/api/partner/me");
       if (c) return;
-      if (!r.ok) setErr(r.error || "Ошибка");
+      if (!r.ok) setErr(r.error || "Ошибка загрузки");
       else setData(r.data || null);
     })();
     return () => {
@@ -83,7 +143,7 @@ export default function PartnerDashboardPage() {
     const r = await apiFetch<PeriodStats>(`/api/partner/stats${q ? `?${q}` : ""}`);
     setLoadingStats(false);
     if (!r.ok) {
-      setStatsErr(r.error || "Ошибка загрузки статистики");
+      setStatsErr(r.error || "Не удалось загрузить статистику");
       setStats(null);
       return;
     }
@@ -96,327 +156,418 @@ export default function PartnerDashboardPage() {
 
   const maxBar = useMemo(() => {
     const s = stats?.series || [];
-    const m = Math.max(1, ...s.map((x) => x.rewardRub));
+    return Math.max(1, ...s.map((x) => x.rewardRub));
+  }, [stats?.series]);
+
+  const peakIdx = useMemo(() => {
+    const s = stats?.series || [];
+    if (!s.length) return -1;
+    let m = 0;
+    s.forEach((row, i) => {
+      if (row.rewardRub > s[m].rewardRub) m = i;
+    });
     return m;
   }, [stats?.series]);
 
+  const onPreset = (v: "7" | "30" | "90" | "all") => {
+    setPreset(v);
+    if (v === "all") setPeriod({ from: "", to: "" });
+    else {
+      const n = v === "7" ? 7 : v === "30" ? 30 : 90;
+      setPeriod(daysAgo(n));
+    }
+  };
+
   if (err) {
-    return <p className="text-red-300">{err}</p>;
+    return <p className="text-red-400">{err}</p>;
   }
   if (!data?.partner) {
-    return <p className="text-zinc-500">Загрузка…</p>;
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-zinc-500">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-cb-flame/30 border-t-cb-flame" />
+      </div>
+    );
   }
 
   const p = data.partner;
-  const u = data.user;
+  const shortId = p.id ? `#${String(p.id).slice(-6)}` : "—";
 
   return (
-    <div className="space-y-10">
-      <section className="relative overflow-hidden rounded-2xl border border-cb-stroke/60 bg-gradient-to-br from-emerald-950/40 via-black/50 to-black/80 p-6 shadow-lg shadow-black/40 sm:p-8">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-cb-stroke/70 bg-black/50 ring-2 ring-emerald-500/20">
-              {u?.avatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={u.avatar}
-                  alt=""
-                  className="h-full w-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-2xl text-zinc-600">
-                  ?
-                </div>
-              )}
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400/90">
-                Партнёрский кабинет
-              </p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">
-                {u?.displayName || u?.username || "Партнёр"}
-              </h1>
-              {u?.steamId ? (
-                <p className="mt-0.5 font-mono text-sm text-zinc-500">Steam {u.steamId}</p>
-              ) : null}
-              <p className="mt-2 text-sm text-zinc-400">
-                Ставка:{" "}
-                <span className="font-mono font-semibold text-emerald-300">{p.percentDisplay}%</span> от чистого
-                депозита (без бонуса по промокоду сайта).
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div>
-        <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500">Сводка (всё время)</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Stat label="Активаций по коду" value={p.usersActivated} />
-          <Stat label="Депозитов (счётчик)" value={p.depositsCount} />
-          <Stat label="Оборот депозитов" money value={p.depositsVolumeRub} />
-          <Stat label="Ожидает одобрения и зачисления" money value={p.totalEarnedPendingRub} />
-          <Stat label="Зачислено на баланс (всего)" money value={p.totalPaidOutRub} />
-          {p.totalEarnedConfirmedRub > 0 ? (
-            <Stat label="Ранее подтверждено (архив)" money value={p.totalEarnedConfirmedRub} />
-          ) : null}
-        </div>
-      </div>
-
-      <section className="rounded-2xl border border-cb-stroke/60 bg-black/30 p-5 sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="pb-8">
+      {tab === "analytics" ? (
+      <div className="space-y-8">
+        <div className="flex flex-col gap-4 border-b border-white/[0.06] pb-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500">
-              Статистика за период
-            </h2>
-            <p className="mt-1 text-xs text-zinc-600">
-              Даты в локальном календаре; график по дням — UTC. Пустой период = всё время.
+            <h1 className="text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">
+              Аналитика партнёра
+            </h1>
+            <p className="mt-2 text-sm text-zinc-500">
+              Показатели в реальном времени · ID:{" "}
+              <span className="font-mono text-zinc-400">{shortId}</span>
+              {" · "}
+              ставка{" "}
+              <span className="font-mono text-cb-flame/95">{p.percentDisplay}%</span> от чистой базы депозита
             </p>
           </div>
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="flex flex-col text-[10px] text-zinc-500">
-              С
-              <input
-                type="date"
-                className="rounded-lg border border-cb-stroke/70 bg-black/50 px-2 py-1.5 font-mono text-sm text-white"
-                value={period.from}
-                onChange={(e) => setPeriod((x) => ({ ...x, from: e.target.value }))}
-              />
-            </label>
-            <label className="flex flex-col text-[10px] text-zinc-500">
-              По
-              <input
-                type="date"
-                className="rounded-lg border border-cb-stroke/70 bg-black/50 px-2 py-1.5 font-mono text-sm text-white"
-                value={period.to}
-                onChange={(e) => setPeriod((x) => ({ ...x, to: e.target.value }))}
-              />
-            </label>
-            <div className="flex flex-wrap gap-1">
-              <Preset label="7 дн." onClick={() => setPeriod(daysAgo(7))} />
-              <Preset label="30 дн." onClick={() => setPeriod(daysAgo(30))} />
-              <Preset label="90 дн." onClick={() => setPeriod(daysAgo(90))} />
-              <button
-                type="button"
-                className="rounded border border-zinc-600 px-2 py-1 text-[11px] text-zinc-400 hover:border-zinc-500"
-                onClick={() => setPeriod({ from: "", to: "" })}
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-[#111] px-3 py-1.5 text-xs font-medium text-zinc-300">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-cb-flame shadow-[0_0_8px_rgba(255,49,49,0.8)]" />
+              Статус: активен
+            </span>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-zinc-600">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M8 3v4M16 3v4M3 11h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </span>
+              <select
+                value={preset}
+                onChange={(e) => onPreset(e.target.value as typeof preset)}
+                className="appearance-none rounded-xl border border-white/[0.1] bg-[#111] py-2.5 pl-10 pr-8 text-sm text-zinc-200 focus:border-cb-flame/40 focus:outline-none focus:ring-1 focus:ring-cb-flame/30"
               >
-                Всё время
-              </button>
+                <option value="7">Последние 7 дней</option>
+                <option value="30">Последние 30 дней</option>
+                <option value="90">Последние 90 дней</option>
+                <option value="all">За всё время</option>
+              </select>
             </div>
           </div>
         </div>
 
-        {statsErr ? <p className="mt-4 text-sm text-red-300">{statsErr}</p> : null}
-        {loadingStats ? <p className="mt-4 text-sm text-zinc-500">Загрузка периода…</p> : null}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <KpiCard
+            label="Зачислено на баланс"
+            sub="всего за период работы"
+            money
+            value={p.totalPaidOutRub}
+          />
+          <KpiCard label="Активации" sub="по реферальным кодам" value={p.usersActivated} highlight />
+          <KpiCard label="Депозитов" sub="количество" value={p.depositsCount} />
+          <KpiCard label="Оборот депозитов" sub="₽" money value={p.depositsVolumeRub} />
+          <KpiCard
+            label="Ожидает зачисления"
+            sub="после одобрения админа"
+            money
+            value={p.totalEarnedPendingRub}
+          />
+        </div>
 
-        {stats ? (
-          <div className="mt-6 space-y-6">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Stat label="Начислено за период" money value={stats.totals.rewardRub} />
-              <Stat label="Сумма нетто-депозитов" money value={stats.totals.netDepositRub} />
-              <Stat label="Событий (начислений)" value={stats.totals.count} />
-            </div>
-
-            {stats.series.length > 0 ? (
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                  По дням (начисления, ₽)
-                </p>
-                <div className="mt-3 flex h-36 items-end gap-px overflow-x-auto rounded-xl border border-cb-stroke/50 bg-black/40 px-2 pb-1 pt-4">
-                  {stats.series.map((row) => {
-                    const h = Math.max(4, Math.round((row.rewardRub / maxBar) * 100));
-                    return (
-                      <div
-                        key={row.day}
-                        className="group flex min-w-[10px] max-w-[24px] flex-1 flex-col items-center justify-end"
-                        title={`${row.day}: ${row.rewardRub} ₽`}
-                      >
-                        <div
-                          className="w-full min-h-[4px] rounded-t bg-gradient-to-t from-emerald-800/80 to-emerald-400/90 opacity-90 transition group-hover:opacity-100"
-                          style={{ height: `${h}%` }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="mt-2 text-center text-[10px] text-zinc-600">Наведите на столбец для даты и суммы</p>
+        {statsErr ? (
+          <p className="text-sm text-red-400">{statsErr}</p>
+        ) : loadingStats ? (
+          <p className="text-sm text-zinc-500">Загрузка данных периода…</p>
+        ) : stats ? (
+          <div className="grid gap-6 lg:grid-cols-5">
+            <div className="lg:col-span-3">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+                  Разбивка за период
+                </h3>
+                <span className="text-[10px] text-zinc-600">{periodLabel(period.from, period.to)}</span>
               </div>
-            ) : (
-              <p className="mt-4 text-sm text-zinc-500">Нет данных за выбранный период.</p>
-            )}
-
-            <div className="overflow-x-auto rounded-xl border border-cb-stroke/70">
-              <table className="w-full min-w-[520px] text-left text-sm">
-                <thead className="border-b border-cb-stroke/60 bg-black/30 text-[10px] uppercase text-zinc-500">
-                  <tr>
-                    <th className="px-3 py-2">День</th>
-                    <th className="px-3 py-2">Начислено</th>
-                    <th className="px-3 py-2">Нетто деп.</th>
-                    <th className="px-3 py-2">Событий</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.series.map((row) => (
-                    <tr key={row.day} className="border-b border-cb-stroke/30">
-                      <td className="px-3 py-2 font-mono text-zinc-300">{row.day}</td>
-                      <td className="px-3 py-2 font-mono text-emerald-300">
-                        <SiteMoney value={row.rewardRub} className="inline text-emerald-300" />
-                      </td>
-                      <td className="px-3 py-2 font-mono text-zinc-400">
-                        <SiteMoney value={row.netDepositRub} className="inline text-zinc-400" />
-                      </td>
-                      <td className="px-3 py-2 text-zinc-500">{row.count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div>
-              <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                Детализация начислений за период
-              </h3>
-              <div className="overflow-x-auto rounded-xl border border-cb-stroke/70">
-                <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead className="border-b border-cb-stroke/60 bg-black/30 text-[10px] uppercase text-zinc-500">
-                    <tr>
-                      <th className="px-3 py-2">Дата</th>
-                      <th className="px-3 py-2">Депозит (нетто ₽)</th>
-                      <th className="px-3 py-2">%</th>
-                      <th className="px-3 py-2">Начисление</th>
-                      <th className="px-3 py-2">Статус</th>
+              <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#111]/80">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] text-[10px] uppercase tracking-wider text-zinc-500">
+                      <th className="px-4 py-3 font-semibold">Категория</th>
+                      <th className="px-4 py-3 font-semibold">Сумма</th>
+                      <th className="px-4 py-3 text-right font-semibold">События</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {(stats.earnings || []).map((e) => (
-                      <tr key={e.id} className="border-b border-cb-stroke/40">
-                        <td className="px-3 py-2 text-zinc-400">
-                          {e.at ? new Date(e.at).toLocaleString() : "—"}
+                  <tbody className="divide-y divide-white/[0.04]">
+                    <tr>
+                      <td className="px-4 py-3.5 text-zinc-300">Начисления партнёру</td>
+                      <td className="px-4 py-3.5 font-mono text-cb-flame">
+                        <SiteMoney value={stats.totals.rewardRub} className="inline text-cb-flame" />
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-mono text-zinc-400">{stats.totals.count}</td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-3.5 text-zinc-300">Нетто-депозиты (база)</td>
+                      <td className="px-4 py-3.5 font-mono text-zinc-400">
+                        <SiteMoney value={stats.totals.netDepositRub} className="inline text-zinc-400" />
+                      </td>
+                      <td className="px-4 py-3.5 text-right text-zinc-600">—</td>
+                    </tr>
+                    {p.totalEarnedConfirmedRub > 0 ? (
+                      <tr>
+                        <td className="px-4 py-3.5 text-zinc-500">Архив (старые подтверждения)</td>
+                        <td className="px-4 py-3.5 font-mono text-zinc-500">
+                          <SiteMoney value={p.totalEarnedConfirmedRub} className="inline" />
                         </td>
-                        <td className="px-3 py-2 font-mono text-zinc-300">{e.netDepositRub}</td>
-                        <td className="px-3 py-2">{(e.percentBps / 100).toFixed(2)}%</td>
-                        <td className="px-3 py-2 font-mono text-emerald-300">{e.rewardRub} ₽</td>
-                        <td className="px-3 py-2 text-xs text-zinc-500">{earningStatusRu(e.status)}</td>
+                        <td className="px-4 py-3.5 text-right text-zinc-600">—</td>
                       </tr>
-                    ))}
+                    ) : null}
                   </tbody>
                 </table>
               </div>
-              {(stats.earnings || []).length >= 500 ? (
-                <p className="mt-2 text-xs text-zinc-600">Показаны последние 500 записей за период.</p>
-              ) : null}
+            </div>
+
+            <div className="lg:col-span-2">
+              <div className="mb-4">
+                <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+                  Динамика начислений
+                </h3>
+                <p className="mt-1 text-[10px] text-zinc-600">По дням, ₽</p>
+              </div>
+              <div className="flex h-[280px] flex-col rounded-2xl border border-white/[0.06] bg-[#111]/80 p-4">
+                {stats.series.length > 0 ? (
+                  <div className="flex h-full min-h-0 flex-1 items-end gap-1">
+                    {stats.series.map((row, i) => {
+                      const h = Math.max(6, Math.round((row.rewardRub / maxBar) * 100));
+                      const isPeak = i === peakIdx;
+                      return (
+                        <div
+                          key={row.day}
+                          className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                          title={`${row.day}: ${row.rewardRub} ₽`}
+                        >
+                          <div
+                            className={`w-full max-w-[28px] rounded-t transition ${
+                              isPeak
+                                ? "bg-gradient-to-t from-red-700 to-cb-flame shadow-[0_0_20px_rgba(255,49,49,0.35)]"
+                                : "bg-zinc-800 group-hover:bg-zinc-700"
+                            }`}
+                            style={{ height: `${h}%` }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-1 items-center justify-center text-sm text-zinc-600">
+                    Нет данных за выбранный период
+                  </div>
+                )}
+                {stats.series.length > 0 ? (
+                  <div className="mt-3 flex justify-between gap-1 border-t border-white/[0.04] pt-2 text-[9px] text-zinc-600">
+                    {stats.series.map((row) => (
+                      <span key={row.day} className="min-w-0 flex-1 truncate text-center font-mono">
+                        {row.day.slice(5)}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         ) : null}
-      </section>
+      </div>
+      ) : null}
 
-      <div>
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-zinc-500">
-          Ваши реферальные коды
-        </h2>
-        <div className="space-y-2">
+      {tab === "codes" ? (
+      <SectionShell
+        title="Коды и промо"
+        description="Реферальные коды для поля «промокод» при пополнении. Бонус к сумме депозита задаёт администратор."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
           {data.codes?.length ? (
             data.codes.map((c) => (
               <div
                 key={c.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-cb-stroke/70 bg-black/40 px-4 py-3"
+                className="rounded-xl border border-white/[0.08] bg-gradient-to-br from-[#141414] to-[#0a0a0a] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
               >
-                <div className="min-w-0">
-                  <span className="font-mono text-lg text-white">{c.code}</span>
-                  {c.label ? <p className="text-xs text-zinc-500">{c.label}</p> : null}
-                  {(c.depositBonusPercent ?? 0) > 0 ? (
-                    <p className="text-xs text-emerald-200/90">
-                      бонус к депозиту при пополнении: {c.depositBonusPercent}%
-                    </p>
-                  ) : null}
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-mono text-lg font-bold tracking-tight text-white">{c.code}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                      c.active ? "bg-cb-flame/15 text-cb-flame" : "bg-zinc-800 text-zinc-500"
+                    }`}
+                  >
+                    {c.active ? "активен" : "выкл."}
+                  </span>
                 </div>
-                <span className="text-xs text-zinc-500">{c.active ? "активен" : "выкл."}</span>
+                {c.label ? <p className="mt-2 text-xs text-zinc-500">{c.label}</p> : null}
+                {(c.depositBonusPercent ?? 0) > 0 ? (
+                  <p className="mt-2 text-xs text-zinc-400">
+                    Бонус к депозиту:{" "}
+                    <span className="font-mono text-cb-flame/90">{c.depositBonusPercent}%</span>
+                  </p>
+                ) : (
+                  <p className="mt-2 text-[11px] text-zinc-600">Без бонуса к депозиту по этому коду</p>
+                )}
               </div>
             ))
           ) : (
             <p className="text-sm text-zinc-500">Коды выдаёт администратор.</p>
           )}
         </div>
-      </div>
+      </SectionShell>
+      ) : null}
 
-      <div>
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-zinc-500">
-          Последние начисления (обзор)
-        </h2>
-        <p className="mb-3 text-xs text-zinc-600">До 80 последних записей без фильтра по датам.</p>
-        <div className="overflow-x-auto rounded-xl border border-cb-stroke/70">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b border-cb-stroke/60 bg-black/30 text-[10px] uppercase text-zinc-500">
-              <tr>
-                <th className="px-3 py-2">Дата</th>
-                <th className="px-3 py-2">Депозит (нетто ₽)</th>
-                <th className="px-3 py-2">%</th>
-                <th className="px-3 py-2">Начисление</th>
-                <th className="px-3 py-2">Статус</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(data.earnings || []).map((e) => (
-                <tr key={e.id} className="border-b border-cb-stroke/40">
-                  <td className="px-3 py-2 text-zinc-400">{e.at ? new Date(e.at).toLocaleString() : "—"}</td>
-                  <td className="px-3 py-2 font-mono text-zinc-300">{e.netDepositRub}</td>
-                  <td className="px-3 py-2">{(e.percentBps / 100).toFixed(2)}%</td>
-                  <td className="px-3 py-2 font-mono text-emerald-300">{e.rewardRub} ₽</td>
-                  <td className="px-3 py-2 text-xs text-zinc-500">{earningStatusRu(e.status)}</td>
+      {tab === "finances" ? (
+      <SectionShell
+        title="Финансы"
+        description="Суммы по дням за выбранный период. Период дат задаётся на вкладке «Аналитика»."
+      >
+        <p className="mb-4 text-xs text-zinc-500">
+          Текущий диапазон:{" "}
+          <span className="font-mono text-zinc-400">{periodLabel(period.from, period.to)}</span>.{" "}
+          <button
+            type="button"
+            onClick={() => setTab("analytics")}
+            className="text-cb-flame/95 underline-offset-2 hover:underline"
+          >
+            Изменить на вкладке «Аналитика»
+          </button>
+        </p>
+        {stats ? (
+          <div className="overflow-x-auto rounded-xl border border-white/[0.05] bg-[#111]/60">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead className="border-b border-white/[0.06] text-[10px] uppercase tracking-wider text-zinc-500">
+                <tr>
+                  <th className="px-4 py-3 text-left">День</th>
+                  <th className="px-4 py-3 text-right">Начисления</th>
+                  <th className="px-4 py-3 text-right">Нетто</th>
+                  <th className="px-4 py-3 text-right">События</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {stats.series.length ? (
+                  stats.series.map((row) => (
+                    <tr key={row.day}>
+                      <td className="px-4 py-2.5 font-mono text-zinc-400">{row.day}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-cb-flame">
+                        <SiteMoney value={row.rewardRub} className="inline" />
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono text-zinc-400">
+                        <SiteMoney value={row.netDepositRub} className="inline" />
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-zinc-500">{row.count}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-zinc-600">
+                      Нет строк за период
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-600">
+            Загрузите данные — сначала откройте вкладку «Аналитика» и выберите период.
+          </p>
+        )}
+      </SectionShell>
+      ) : null}
+
+      {tab === "reports" ? (
+      <SectionShell
+        title="Отчёты"
+        description="Две таблицы: последние операции (до 80 записей) и детализация по выбранному периоду (до 500 строк)."
+      >
+        <div className="space-y-8">
+          <div>
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.15em] text-zinc-400">
+              Последние начисления
+            </h3>
+            <div className="overflow-x-auto rounded-xl border border-white/[0.05] bg-[#111]/60">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="border-b border-white/[0.06] text-[10px] uppercase tracking-wider text-zinc-500">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Дата</th>
+                    <th className="px-4 py-3 text-right">Нетто ₽</th>
+                    <th className="px-4 py-3 text-right">%</th>
+                    <th className="px-4 py-3 text-right">Начисление</th>
+                    <th className="px-4 py-3 text-left">Статус</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04]">
+                  {(data.earnings || []).map((e) => (
+                    <tr key={e.id} className="hover:bg-white/[0.02]">
+                      <td className="px-4 py-2.5 text-zinc-500">
+                        {e.at ? new Date(e.at).toLocaleString("ru-RU") : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono text-zinc-300">{e.netDepositRub}</td>
+                      <td className="px-4 py-2.5 text-right text-zinc-400">{(e.percentBps / 100).toFixed(2)}%</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-cb-flame">{e.rewardRub} ₽</td>
+                      <td className="px-4 py-2.5 text-xs text-zinc-500">{earningStatusRu(e.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!(data.earnings || []).length ? (
+              <p className="mt-3 text-xs text-zinc-600">Пока нет записей.</p>
+            ) : null}
+          </div>
+
+          {stats && stats.earnings.length > 0 ? (
+            <div>
+              <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.15em] text-zinc-400">
+                Начисления за выбранный период
+              </h3>
+              <div className="overflow-x-auto rounded-xl border border-white/[0.05] bg-[#111]/60">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead className="border-b border-white/[0.06] text-[10px] uppercase tracking-wider text-zinc-500">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Дата</th>
+                      <th className="px-4 py-3 text-right">Нетто ₽</th>
+                      <th className="px-4 py-3 text-right">%</th>
+                      <th className="px-4 py-3 text-right">Начисление</th>
+                      <th className="px-4 py-3 text-left">Статус</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.04]">
+                    {stats.earnings.map((e) => (
+                      <tr key={e.id} className="hover:bg-white/[0.02]">
+                        <td className="px-4 py-2.5 text-zinc-500">
+                          {e.at ? new Date(e.at).toLocaleString("ru-RU") : "—"}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-mono text-zinc-300">{e.netDepositRub}</td>
+                        <td className="px-4 py-2.5 text-right text-zinc-400">{(e.percentBps / 100).toFixed(2)}%</td>
+                        <td className="px-4 py-2.5 text-right font-mono text-cb-flame">{e.rewardRub} ₽</td>
+                        <td className="px-4 py-2.5 text-xs text-zinc-500">{earningStatusRu(e.status)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {stats.earnings.length >= 500 ? (
+                <p className="mt-3 text-xs text-zinc-600">Показано до 500 записей за период.</p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
-      </div>
+      </SectionShell>
+      ) : null}
     </div>
   );
 }
 
-function Preset({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      className="rounded border border-emerald-900/60 bg-emerald-950/30 px-2 py-1 text-[11px] text-emerald-200/90 hover:bg-emerald-950/50"
-      onClick={onClick}
-    >
-      {label}
-    </button>
-  );
-}
-
-function earningStatusRu(status: string) {
-  switch (status) {
-    case "pending":
-      return "ожидает одобрения";
-    case "credited":
-      return "зачислено на баланс";
-    case "confirmed":
-      return "подтверждено (архив)";
-    case "void":
-      return "отменено";
-    default:
-      return status;
-  }
-}
-
-function Stat({
+function KpiCard({
   label,
+  sub,
   value,
   money,
+  highlight,
 }: {
   label: string;
+  sub?: string;
   value: number;
   money?: boolean;
+  highlight?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-cb-stroke/70 bg-black/35 px-4 py-3">
+    <div
+      className={`rounded-2xl border p-4 transition ${
+        highlight
+          ? "border-cb-flame/50 bg-gradient-to-br from-cb-flame/[0.12] to-transparent shadow-[0_0_24px_rgba(255,49,49,0.12)]"
+          : "border-white/[0.06] bg-[#0c0c0c]"
+      }`}
+    >
       <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-white">
-        {money ? <SiteMoney value={value} className="inline text-white" /> : value}
+      {sub ? <p className="text-[9px] text-zinc-600">{sub}</p> : null}
+      <p className="mt-2 text-xl font-black tabular-nums text-white sm:text-2xl">
+        {money ? (
+          <SiteMoney value={value} className="inline text-white" />
+        ) : (
+          value.toLocaleString("ru-RU")
+        )}
       </p>
     </div>
   );
